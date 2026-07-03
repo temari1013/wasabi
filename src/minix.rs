@@ -37,7 +37,6 @@ pub struct minix_dir_entry {
 pub fn  read_magic (minix_img : &[u8]) -> u16{
     // 引数にイメージのバイナリを取る
     // 第一ブロックを読み飛ばす
-
     let super_block = unsafe{
         * (minix_img.as_ptr().add(MINIX_BLOCK_SIZE) as *const minix_super_block)
     };
@@ -46,6 +45,9 @@ pub fn  read_magic (minix_img : &[u8]) -> u16{
 
 pub fn interpretation_minix_img (minix_img :&[u8]){
     // イメージのバイナリを渡される
+    let super_block = unsafe{
+        * (minix_img.as_ptr().add(MINIX_BLOCK_SIZE) as *const minix_super_block)
+    };
 }
 
 
