@@ -31,6 +31,8 @@ use wasabi::uefi::EfiSystemTable;
 use wasabi::warn;
 use wasabi::x86::init_exceptions;
 
+pub static MINIX_IMG :&[u8] = include_bytes!("minix.img");
+
 #[no_mangle]
 fn efi_main(image_handle: EfiHandle, efi_system_table: &EfiSystemTable) {
     println!("Booting WasabiOS...");
@@ -64,7 +66,7 @@ fn efi_main(image_handle: EfiHandle, efi_system_table: &EfiSystemTable) {
             return Err("serial: loopback test failed");
         }
         info!("Started to monitor serial port");
-        loop {
+        loop { 
             if let Some(v) = sp.try_read() {
                 let c = char::from_u32(v as u32);
                 info!("serial input: {v:#04X} = {c:?}");
