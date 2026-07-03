@@ -3,6 +3,7 @@
 #![feature(offset_of)]
 
 use core::panic::PanicInfo;
+use core::ptr::read;
 use core::ptr::read_volatile;
 use core::ptr::write_volatile;
 use core::time::Duration;
@@ -30,6 +31,7 @@ use wasabi::uefi::EfiHandle;
 use wasabi::uefi::EfiSystemTable;
 use wasabi::warn;
 use wasabi::x86::init_exceptions;
+use wasabi::minix::read_magic;
 
 pub static MINIX_IMG :&[u8] = include_bytes!("minix.img");
 
@@ -91,6 +93,7 @@ fn efi_main(image_handle: EfiHandle, efi_system_table: &EfiSystemTable) {
             write_volatile((base_addr + 4) as *mut u8, 0x0B);
         }
         loop {
+             info!("{:#X}", read_magic(MINIX_IMG));
             sleep(Duration::from_millis(1000)).await;
             info!("----");
             let data = unsafe { read_volatile(reg_rx_data) };

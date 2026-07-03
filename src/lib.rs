@@ -35,6 +35,7 @@ pub mod usb;
 pub mod volatile;
 pub mod x86;
 pub mod xhci;
+pub mod minix;
 
 #[cfg(test)]
 pub mod test_runner;
