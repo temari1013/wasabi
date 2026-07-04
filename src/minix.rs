@@ -1,3 +1,7 @@
+use core::mem::size_of;
+use crate::info;
+
+
 const  MINIX_BLOCK_SIZE: usize =  1024;
 
 #[repr(C , packed)]
@@ -16,6 +20,7 @@ pub  struct minix_super_block {
 }
 
 #[repr(C , packed)]
+#[derive(Clone, Copy)]
 pub struct minix_inode {
     pub i_mode: u16 , 
     pub i_uid : u16 , 
@@ -30,7 +35,7 @@ pub struct minix_inode {
 pub struct minix_dir_entry {
     pub inode : u16 , 
     // char name[]; でこまった
-    pub name : [char ; 14],
+    pub name : [char ; 30],
 }
 
 
@@ -43,11 +48,42 @@ pub fn  read_magic (minix_img : &[u8]) -> u16{
      super_block.s_magic
 }
 
-pub fn interpretation_minix_img (minix_img :&[u8]){
+pub fn read_file_name (minix_img :&[u8]) {
     // イメージのバイナリを渡される
     let super_block = unsafe{
         * (minix_img.as_ptr().add(MINIX_BLOCK_SIZE) as *const minix_super_block)
     };
+    // super_block.
+   let inodes_num = super_block.s_ninodes as usize;
+    let znodes_blocks = super_block.s_zmap_blocks as usize;
+    let inodes_blocks = super_block.s_imap_blocks as usize;
+
+    // 全inodesについて
+    for i in 0..inodes_num{
+        // 1.ビットマップを見て、使われているかどうかを判断する
+        // 開始ビットは + 2048? 
+        let is_used = (minix_img[1024 * 2 + (i / 8)] & (1 << (i % 8))) != 0;
+        if(is_used) {
+            // 使われているので、inodeを読み取る処理が必要
+            // inodeの最初のブロックのオフセットブロック数は、2 + znodes_blocks + inodes_blocks
+            // ブロック内でのオフセットは I * size_of(inode)で取得できる
+            let block_offset = 2 + (znodes_blocks as usize) + (inodes_blocks as usize);
+            let inner_block_offset = (i as usize) + size_of::<minix_inode>();
+            let inode = unsafe {
+                *(minix_img.as_ptr().add((MINIX_BLOCK_SIZE as usize) * block_offset).add(inner_block_offset) as *const minix_inode)
+            };
+
+            // ゾーンの変換処理が必要
+            let zone_block = inode.i_zone[0] as usize;
+            // zone の[0] ~ [6]は直接ブロック番号が入っているので、zone_bitmapと照らし合わせると良い?
+            // とりあえずファイルの名前を取得しよう
+            let  tmp = unsafe{
+                *(zone_block.as_ptr() as * const minix_dir_entry)
+            };
+
+            info!(" block : {:#X}"  , tmp);
+        }   
+    }
 }
 
 

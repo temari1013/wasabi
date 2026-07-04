@@ -32,6 +32,7 @@ use wasabi::uefi::EfiSystemTable;
 use wasabi::warn;
 use wasabi::x86::init_exceptions;
 use wasabi::minix::read_magic;
+use wasabi::minix::read_file_name;
 
 pub static MINIX_IMG :&[u8] = include_bytes!("minix.img");
 
