@@ -20,6 +20,7 @@ pub mod hpet;
 pub mod init;
 pub mod input;
 pub mod keyboard;
+pub mod minix;
 pub mod mmio;
 pub mod mutex;
 pub mod pci;
@@ -35,7 +36,6 @@ pub mod usb;
 pub mod volatile;
 pub mod x86;
 pub mod xhci;
-pub mod minix;
 
 #[cfg(test)]
 pub mod test_runner;

@@ -20,6 +20,8 @@ use wasabi::init::init_hpet;
 use wasabi::init::init_paging;
 use wasabi::init::init_pci;
 use wasabi::input::input_task;
+use wasabi::minix::read_file_name;
+use wasabi::minix::read_magic;
 use wasabi::print::hexdump_struct;
 use wasabi::println;
 use wasabi::qemu::exit_qemu;
@@ -31,10 +33,8 @@ use wasabi::uefi::EfiHandle;
 use wasabi::uefi::EfiSystemTable;
 use wasabi::warn;
 use wasabi::x86::init_exceptions;
-use wasabi::minix::read_magic;
-use wasabi::minix::read_file_name;
 
-pub static MINIX_IMG :&[u8] = include_bytes!("minix.img");
+pub static MINIX_IMG: &[u8] = include_bytes!("minix.img");
 
 #[no_mangle]
 fn efi_main(image_handle: EfiHandle, efi_system_table: &EfiSystemTable) {
@@ -69,7 +69,7 @@ fn efi_main(image_handle: EfiHandle, efi_system_table: &EfiSystemTable) {
             return Err("serial: loopback test failed");
         }
         info!("Started to monitor serial port");
-        loop { 
+        loop {
             if let Some(v) = sp.try_read() {
                 let c = char::from_u32(v as u32);
                 info!("serial input: {v:#04X} = {c:?}");
@@ -94,13 +94,16 @@ fn efi_main(image_handle: EfiHandle, efi_system_table: &EfiSystemTable) {
             write_volatile((base_addr + 4) as *mut u8, 0x0B);
         }
         loop {
-             info!("{:#X}", read_magic(MINIX_IMG));
+            info!("{:#X}", read_magic(MINIX_IMG));
+            read_file_name(MINIX_IMG);
+            /*
             sleep(Duration::from_millis(1000)).await;
             info!("----");
             let data = unsafe { read_volatile(reg_rx_data) };
             info!("DATA:      {data:#010X}");
             let status = unsafe { read_volatile(reg_line_status) };
             info!("STATUS:    {status:#010b}");
+              */
         }
     };
     spawn_global(abp_uart_task);
