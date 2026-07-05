@@ -1,5 +1,5 @@
 use crate::info;
-use core::mem::size_of;
+use core::{mem::size_of, str::Chars};
 
 const MINIX_BLOCK_SIZE: usize = 1024;
 
@@ -88,13 +88,16 @@ pub fn read_file_name(minix_img: &[u8]) {
             let zone_block = inode.i_zone[0] as usize;
             let zone_offset = zone_block * (MINIX_BLOCK_SIZE as usize);
 
-            //　一旦バイト列として読み出す
-
-            let tmp = unsafe {
-                *(minix_img.as_ptr().add(zone_offset).add(i * 8) as *const u8)
+            //　一旦バイト列として読み出す。 この中にはファイルの名前とinodeが格納されているはず
+            for i in 0..1024{
+                  let tmp = unsafe {
+                *(minix_img.as_ptr().add(zone_offset).add(i )as *const u8)
             };
-
-            info!("{}", tmp as char);
+            if (tmp!= 0){
+                  info!("{}" ,tmp as char );
+            }
+            }
+          
         }
     }
 }
