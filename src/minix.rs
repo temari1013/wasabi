@@ -40,7 +40,7 @@ pub struct minix_dir_entry {
 
 pub fn read_magic(minix_img: &[u8]) -> u16 {
     // 引数にイメージのバイナリを取る
-    // 第一ブロックを読み飛ばす
+    // 第一ブロックは起動なので読み飛ばす
     let super_block = unsafe {
         *(minix_img.as_ptr().add(MINIX_BLOCK_SIZE) as *const minix_super_block)
     };
@@ -80,7 +80,7 @@ pub fn read_file_name(minix_img: &[u8]) {
                     as *const minix_inode)
             };
 
-            // zone の[0] ~
+            // zone の[0]
             // [6]は直接ブロック番号が入っているので、
             // zone_bitmapと照らし合わせると良い?
             // とりあえずルート以下のファイル名を取得する、
@@ -88,16 +88,17 @@ pub fn read_file_name(minix_img: &[u8]) {
             let zone_block = inode.i_zone[0] as usize;
             let zone_offset = zone_block * (MINIX_BLOCK_SIZE as usize);
 
-            //　一旦バイト列として読み出す。 この中にはファイルの名前とinodeが格納されているはず
-            for i in 0..1024{
-                  let tmp = unsafe {
-                *(minix_img.as_ptr().add(zone_offset).add(i )as *const u8)
-            };
-            if (tmp!= 0){
-                  info!("{}" ,tmp as char );
+            //　一旦バイト列として読み出す。
+            // この中にはファイルの名前とinodeが格納されているはず
+            for i in 0..32 {
+                let tmp = unsafe {
+                    *(minix_img.as_ptr().add(zone_offset).add(i * 32)
+                        as *const minix_dir_entry)
+                };
+                for j in 0..30 {
+                    info!("{}", tmp.name[j] as char);
+                }
             }
-            }
-          
         }
     }
 }
