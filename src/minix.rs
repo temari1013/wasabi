@@ -2,6 +2,7 @@ use crate::info;
 use core::{mem::size_of, str::Chars};
 
 const MINIX_BLOCK_SIZE: usize = 1024;
+pub type c_char = i8;
 
 #[repr(C, packed)]
 #[derive(Clone, Copy)]
@@ -35,7 +36,7 @@ pub struct minix_inode {
 pub struct minix_dir_entry {
     pub inode: u16,
     // char name[]; でこまった
-    pub name: [char; 30],
+    pub name: [c_char; 30],
 }
 
 pub fn read_magic(minix_img: &[u8]) -> u16 {
@@ -96,7 +97,10 @@ pub fn read_file_name(minix_img: &[u8]) {
                         as *const minix_dir_entry)
                 };
                 for j in 0..30 {
-                    info!("{}", tmp.name[j] as char);
+                    let c = tmp.name[j] as u8 as char;
+                    if c != '\0' {
+                        info!("{}", c);
+                    }
                 }
             }
         }
