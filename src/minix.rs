@@ -2,6 +2,7 @@ use crate::info;
 use core::{mem::size_of, str::Chars};
 
 const MINIX_BLOCK_SIZE: usize = 1024;
+const I_DIRECTORY :u16 = 0040000;
 pub type c_char = i8;
 
 #[repr(C, packed)]
@@ -48,47 +49,100 @@ pub fn read_magic(minix_img: &[u8]) -> u16 {
     super_block.s_magic
 }
 
-
-pub fn get_inode (inode_num: u16 , minix_img: &[u8]) -> *const  minix_inode{
+pub fn get_inode(inode_num: u16, minix_img: &[u8]) -> *const minix_inode {
     // inodeの開始位置ブロックが必要
-      let super_block = unsafe {
+    let super_block = unsafe {
         *(minix_img.as_ptr().add(MINIX_BLOCK_SIZE) as *const minix_super_block)
     };
     // super_block
-    let inodes_offset = 2 + super_block.s_zmap_blocks as usize +  super_block.s_imap_blocks as usize;
+    let inodes_offset = 2
+        + super_block.s_zmap_blocks as usize
+        + super_block.s_imap_blocks as usize;
     let tmp = unsafe {
-        minix_img.as_ptr().add(MINIX_BLOCK_SIZE * inodes_offset) .add((inode_num - 1 )as usize * 32 ) as *const minix_inode
+        minix_img
+            .as_ptr()
+            .add(MINIX_BLOCK_SIZE * inodes_offset)
+            .add((inode_num - 1) as usize * 32) as *const minix_inode
     };
-   tmp
+    tmp
 }
 
-pub fn read_file_name(root_inode : * const  minix_inode , minix_img : &[u8]){
+pub fn read_file_zone(inode: *const minix_inode , minix_img: &[u8]){
+   let zone_0 = unsafe { (*inode).i_zone[0] as usize };
+    let file_size = unsafe { (*inode).i_size as usize };
+
+    if zone_0 == 0 || file_size == 0 {
+        return;
+    }
+
+    let zone_offset = zone_0 * MINIX_BLOCK_SIZE;
+    
+    let read_len = core::cmp::min(file_size, MINIX_BLOCK_SIZE);
+
+    let file_data = unsafe {
+        core::slice::from_raw_parts(
+            minix_img.as_ptr().add(zone_offset),
+            read_len
+        )
+    };
+
+    let text = core::str::from_utf8(file_data).unwrap_or("<invalid utf8>");
+    info!("file_data:");
+    info!("{}", text);
+}
+
+pub fn read_all_directoies(root_inode: *const minix_inode, minix_img: &[u8]) {
+    info!("directory:");
+    read_file_name(root_inode, minix_img);
+}
+
+pub fn read_file_name(root_inode: *const minix_inode, minix_img: &[u8]) {
     // 　渡されたinodeの子を再帰的にたどる
 
     let zone_block = unsafe { (*root_inode).i_zone[0] as usize };
     let zone_offset = zone_block * (MINIX_BLOCK_SIZE as usize);
 
-      for i in 0..32 {
-                let tmp = unsafe {
-                    *(minix_img.as_ptr().add(zone_offset).add(i * 32)
-                        as *const minix_dir_entry)
-                };
+    for i in 0..32 {   
+        let tmp = unsafe {
+            *(minix_img.as_ptr().add(zone_offset).add(i * 32)
+                as *const minix_dir_entry)
+        };
+        if tmp.inode == 0 {
+            continue;
+        }
 
-                for j in 0..30 {
-                    let c = tmp.name[j] as u8 as char;
-                    if c != '\0' {
-                        info!("{}", c);
-                    }
+        let name_len = tmp.name.iter().position(|&c| c == 0).unwrap_or(30);
+        let utf8_bytes = unsafe {
+            core::slice::from_raw_parts(
+                tmp.name.as_ptr() as *const u8,
+                name_len,
+            )
+        };
+
+        let file_name =
+            core::str::from_utf8(utf8_bytes).unwrap_or("<invalid utf8>");
+        info!("{}", file_name);
+
+        // tmp.inode は inode番号を返す
+        // カレントディレクトリと未使用inodeを弾く
+        if tmp.name[0] != b'.' as i8  {
+            let is_used = (minix_img[1024 * 2 + (tmp.inode as usize / 8)]
+                & (1 << (tmp.inode as usize % 8)))
+                != 0;
+            let inode = get_inode(tmp.inode , minix_img);
+           if is_used {
+                let i_mode = unsafe { (*inode).i_mode };
+                if (i_mode & 0o170000) == 0o040000 {
+                    read_file_name(inode, minix_img);
+                } else {
+                    read_file_zone(inode, minix_img);
                 }
-
-                // tmp.inode は inode番号を返す
-                read_file_name(get_inode(tmp.inode,minix_img)  as *const minix_inode, minix_img);   
-
-                 
             }
+        }
+    }
 }
 
-pub fn read_all_inode (minix_img: &[u8]) {
+pub fn read_all_inode(minix_img: &[u8]) {
     // イメージのバイナリを渡される
     let super_block = unsafe {
         *(minix_img.as_ptr().add(MINIX_BLOCK_SIZE) as *const minix_super_block)
