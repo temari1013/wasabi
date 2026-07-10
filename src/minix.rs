@@ -201,3 +201,53 @@ pub fn read_all_inode(minix_img: &[u8]) {
         }
     }
 }
+
+
+pub fn alloc_inode(minix_img: &[u8]) -> usize{
+    // 現時点ではinodeはファイル作成にしか使わない
+    let super_block = unsafe {
+        *(minix_img.as_ptr().add(MINIX_BLOCK_SIZE) as *const minix_super_block)
+    };
+
+    let max_bits = (super_block.s_imap_blocks as usize) * MINIX_BLOCK_SIZE * 8;
+    let mut inode_num = 0;
+
+    // 使える最初のinodeを見つける
+  for i in 0..max_bits {
+        let byte_idx = MINIX_BLOCK_SIZE * 2 + (i / 8);
+        let bit_idx = i % 8;
+        let is_used = (minix_img[byte_idx] & (1u8 << bit_idx)) != 0;
+        if !is_used && i!=0{
+            inode_num = i;
+            break;
+        }
+    }
+
+    // 使えるinode番号にinodeを書き込む
+    let node :minix_inode ;
+
+    let inode_table_block = 2 + (super_block.s_imap_blocks as usize) + (super_block.s_zmap_blocks as usize);
+    let inode_offset = (inode_table_block * MINIX_BLOCK_SIZE) + (inode_num - 1) * core::mem::size_of::<minix_inode>();
+
+    let node = minix_inode {
+        i_mode: 0,
+        i_uid: 0,
+        i_size: 0,
+        i_time: 0,
+        i_gid: 0,
+        i_nlinks: 0,
+        i_zone: [0; 9],
+    };
+
+    unsafe {
+        let target_ptr = minix_img.as_mut_ptr().add(inode_offset) as *mut minix_inode;
+        core::ptr::write(target_ptr, node);
+    }
+    inode_num
+}
+ // createは空いてるところにアロックすればok
+
+ 
+pub fn create_file(minix_img: &[u8], data: * mut u8 , ) ->u8{
+
+}
