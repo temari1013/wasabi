@@ -48,7 +48,47 @@ pub fn read_magic(minix_img: &[u8]) -> u16 {
     super_block.s_magic
 }
 
-pub fn read_file_name(minix_img: &[u8]) {
+
+pub fn get_inode (inode_num: u16 , minix_img: &[u8]) -> *const  minix_inode{
+    // inodeの開始位置ブロックが必要
+      let super_block = unsafe {
+        *(minix_img.as_ptr().add(MINIX_BLOCK_SIZE) as *const minix_super_block)
+    };
+    // super_block
+    let inodes_offset = 2 + super_block.s_zmap_blocks as usize +  super_block.s_imap_blocks as usize;
+    let tmp = unsafe {
+        minix_img.as_ptr().add(MINIX_BLOCK_SIZE * inodes_offset) .add((inode_num - 1 )as usize * 32 ) as *const minix_inode
+    };
+   tmp
+}
+
+pub fn read_file_name(root_inode : * const  minix_inode , minix_img : &[u8]){
+    // 　渡されたinodeの子を再帰的にたどる
+
+    let zone_block = unsafe { (*root_inode).i_zone[0] as usize };
+    let zone_offset = zone_block * (MINIX_BLOCK_SIZE as usize);
+
+      for i in 0..32 {
+                let tmp = unsafe {
+                    *(minix_img.as_ptr().add(zone_offset).add(i * 32)
+                        as *const minix_dir_entry)
+                };
+
+                for j in 0..30 {
+                    let c = tmp.name[j] as u8 as char;
+                    if c != '\0' {
+                        info!("{}", c);
+                    }
+                }
+
+                // tmp.inode は inode番号を返す
+                read_file_name(get_inode(tmp.inode,minix_img)  as *const minix_inode, minix_img);   
+
+                 
+            }
+}
+
+pub fn read_all_inode (minix_img: &[u8]) {
     // イメージのバイナリを渡される
     let super_block = unsafe {
         *(minix_img.as_ptr().add(MINIX_BLOCK_SIZE) as *const minix_super_block)
@@ -93,6 +133,7 @@ pub fn read_file_name(minix_img: &[u8]) {
             // この中にはファイルの名前とinodeが格納されているはず
             for i in 0..32 {
                 let tmp = unsafe {
+                    // as const minix_dir_entry失敗したらどうなるのか調査が必要
                     *(minix_img.as_ptr().add(zone_offset).add(i * 32)
                         as *const minix_dir_entry)
                 };

@@ -33,6 +33,7 @@ use wasabi::uefi::EfiHandle;
 use wasabi::uefi::EfiSystemTable;
 use wasabi::warn;
 use wasabi::x86::init_exceptions;
+use wasabi::minix::get_inode;
 
 pub static MINIX_IMG: &[u8] = include_bytes!("minix.img");
 
@@ -69,12 +70,13 @@ fn efi_main(image_handle: EfiHandle, efi_system_table: &EfiSystemTable) {
             return Err("serial: loopback test failed");
         }
         info!("Started to monitor serial port");
+   
         loop {
             if let Some(v) = sp.try_read() {
                 let c = char::from_u32(v as u32);
                 info!("serial input: {v:#04X} = {c:?}");
             }
-            sleep(Duration::from_millis(20)).await;
+            sleep(Duration::from_millis(20)).await; 
         }
     };
     spawn_global(serial_task);
@@ -93,9 +95,10 @@ fn efi_main(image_handle: EfiHandle, efi_system_table: &EfiSystemTable) {
             write_volatile((base_addr + 2) as *mut u8, 0xC7);
             write_volatile((base_addr + 4) as *mut u8, 0x0B);
         }
+             info!("read_file_name");
+             read_file_name(get_inode(1,MINIX_IMG), MINIX_IMG);
         loop {
-            info!("{:#X}", read_magic(MINIX_IMG));
-            read_file_name(MINIX_IMG);
+            //info!("{:#X}", read_magic(MINIX_IMG));
             /*
             sleep(Duration::from_millis(1000)).await;
             info!("----");
