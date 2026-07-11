@@ -371,3 +371,50 @@ pub fn link_inode(
     }
     false
 }
+
+pub fn alloc_zone(minix_img: &mut [u8], inode_num: u16  ) -> u16{
+     let inode = get_inode(inode_num, minix_img);
+     let super_block = unsafe {
+        *(minix_img.as_ptr().add(MINIX_BLOCK_SIZE) as *const minix_super_block)
+    };
+
+    let block_offset = 2 + super_block.s_imap_blocks;
+    let max_bits = (super_block.s_zmap_blocks as usize) * MINIX_BLOCK_SIZE * 8;
+
+    for i in (super_block.s_firstdatazone as usize)..max_bits {
+        let byte_idx = (block_offset  as usize * MINIX_BLOCK_SIZE) + (i / 8);
+        let bit_idx = i % 8;
+        let is_used = (minix_img[byte_idx] & (1u8 << bit_idx)) != 0;
+
+        let mut ret = 0;
+        if !is_used {
+            // ゾーンマップを書き換える
+            minix_img[byte_idx] |= 1u8 << bit_idx;
+            // inode.zone[0] に代入
+            unsafe {
+                (*inode).i_zone[0] = i as u16;
+            }
+            ret = i;
+          return ret as u16
+        }
+    }
+    0 as u16
+}
+
+pub fn write_file (minix_img: &mut [u8], file_path: &[u8]  , data : & [u8]) {
+    let inode_num = inode_by_path(minix_img, file_path);
+    let inode = get_inode(inode_num, minix_img);
+    let mut zone  = unsafe { (*inode).i_zone[0] };
+
+    if (zone == 0){
+        zone = alloc_zone(minix_img, inode_num);
+    }
+
+    let zone_byte = zone as usize * MINIX_BLOCK_SIZE;
+
+  let copy_len = data.len();
+    minix_img[zone_byte..zone_byte + copy_len].copy_from_slice(&data[..copy_len]);
+    unsafe {
+        (*inode).i_size = copy_len as u32;
+    }
+}

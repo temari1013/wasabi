@@ -21,6 +21,7 @@ use wasabi::input::input_task;
 use wasabi::minix::create_file;
 use wasabi::minix::get_inode;
 use wasabi::minix::read_all_directoies;
+use wasabi::minix::write_file;
 use wasabi::print::hexdump_struct;
 use wasabi::println;
 use wasabi::qemu::exit_qemu;
@@ -100,17 +101,12 @@ fn efi_main(image_handle: EfiHandle, efi_system_table: &EfiSystemTable) {
             create_file(&mut MINIX_IMG, b"/newfile.txt");
             info!("read_file_name2");
             read_all_directoies(root_inode, &MINIX_IMG);
+            let text = b"hello minix filesystem";
+            write_file(&mut MINIX_IMG, b"/newfile.txt",text);
+            info!("read_file_name3");
+            read_all_directoies(root_inode, &MINIX_IMG);
         }
         loop {
-            //info!("{:#X}", read_magic(MINIX_IMG));
-            /*
-            sleep(Duration::from_millis(1000)).await;
-            info!("----");
-            let data = unsafe { read_volatile(reg_rx_data) };
-            info!("DATA:      {data:#010X}");
-            let status = unsafe { read_volatile(reg_line_status) };
-            info!("STATUS:    {status:#010b}");
-              */
         }
     };
     spawn_global(abp_uart_task);
