@@ -6,6 +6,7 @@ PATH_TO_EFI="$1"
 rm -rf mnt
 mkdir -p mnt/EFI/BOOT/
 cp ${PATH_TO_EFI} mnt/EFI/BOOT/BOOTX64.EFI
+cp minix.img mnt/minix.img
 set +e
 mkdir -p log
 qemu-system-x86_64 \

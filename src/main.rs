@@ -18,9 +18,9 @@ use wasabi::init::init_hpet;
 use wasabi::init::init_paging;
 use wasabi::init::init_pci;
 use wasabi::input::input_task;
+use wasabi::minix::create_file;
 use wasabi::minix::get_inode;
 use wasabi::minix::read_all_directoies;
-use wasabi::minix::create_file;
 use wasabi::print::hexdump_struct;
 use wasabi::println;
 use wasabi::qemu::exit_qemu;
@@ -33,7 +33,7 @@ use wasabi::uefi::EfiSystemTable;
 use wasabi::warn;
 use wasabi::x86::init_exceptions;
 
-pub static MINIX_IMG: &[u8] = include_bytes!("minix.img");
+pub static mut MINIX_IMG: [u8; 2097152] = *include_bytes!("minix.img");
 
 #[no_mangle]
 fn efi_main(image_handle: EfiHandle, efi_system_table: &EfiSystemTable) {
@@ -94,10 +94,13 @@ fn efi_main(image_handle: EfiHandle, efi_system_table: &EfiSystemTable) {
             write_volatile((base_addr + 4) as *mut u8, 0x0B);
         }
         info!("read_file_name");
-        read_all_directoies(get_inode(1, MINIX_IMG), MINIX_IMG);
-        create_file(MINIX_IMG, b"/newfile.txt");
-        info!("read_file_name2");
-        read_all_directoies(get_inode(1, MINIX_IMG), MINIX_IMG);
+        unsafe {
+            let root_inode = get_inode(1, &MINIX_IMG);
+            read_all_directoies(root_inode, &MINIX_IMG);
+            create_file(&mut MINIX_IMG, b"/newfile.txt");
+            info!("read_file_name2");
+            read_all_directoies(root_inode, &MINIX_IMG);
+        }
         loop {
             //info!("{:#X}", read_magic(MINIX_IMG));
             /*

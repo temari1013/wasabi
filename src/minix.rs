@@ -254,7 +254,7 @@ pub fn alloc_inode(minix_img: &mut [u8]) -> usize {
 }
 // createは空いてるところにアロックすればok
 
-pub fn create_file(minix_img: &mut [u8] , file_path: &[u8]) -> *mut minix_inode {
+pub fn create_file(minix_img: &mut [u8], file_path: &[u8]) -> *mut minix_inode {
     // inodeと同じ要領で空いているzoneを探す
     // zone はブロック単位で割り当てるのが差異
     let super_block = unsafe {
@@ -271,19 +271,17 @@ pub fn create_file(minix_img: &mut [u8] , file_path: &[u8]) -> *mut minix_inode 
     let (parent_path, file_name) = match last_slash_idx {
         Some(idx) => {
             let parent = if idx == 0 {
-                b"/".as_slice() 
+                b"/".as_slice()
             } else {
-                &file_path[..idx] 
+                &file_path[..idx]
             };
-            let name = &file_path[idx + 1..]; 
+            let name = &file_path[idx + 1..];
             (parent, name)
         }
-        None => {
-            (b"/".as_slice(), file_path)
-        }
+        None => (b"/".as_slice(), file_path),
     };
 
-    let parent_inode = inode_by_path(minix_img,parent_path );
+    let parent_inode = inode_by_path(minix_img, parent_path);
     link_inode(minix_img, parent_inode, inode_num as u16, file_name);
     // link_inode を呼び出して作成したinodeを書き込む必要がある
     // それって本来的にはファイルのパス解決が必要なのでは?
@@ -293,17 +291,17 @@ pub fn create_file(minix_img: &mut [u8] , file_path: &[u8]) -> *mut minix_inode 
     ret
 }
 
-pub fn inode_by_path( minix_img: &mut [u8],file_path: &[u8],) -> u16{
+pub fn inode_by_path(minix_img: &mut [u8], file_path: &[u8]) -> u16 {
     // ファイルパスを分割する
-    // 分割したパス事にinodeを取得し、そのinodeを親に検索して末尾までたどりつけると良い
+    // 分割したパス事にinodeを取得し、
+    // そのinodeを親に検索して末尾までたどりつけると良い
     let components = file_path
-    .split(|&b| b == b'/')
-    .filter(|comp| !comp.is_empty());
+        .split(|&b| b == b'/')
+        .filter(|comp| !comp.is_empty());
 
-   let mut current_inode_num = 1;
+    let mut current_inode_num = 1;
 
-    for comp in components{
-
+    for comp in components {
         let current_inode_ptr = get_inode(current_inode_num, minix_img);
 
         let zone_block = unsafe { (*current_inode_ptr).i_zone[0] as usize };
@@ -332,12 +330,11 @@ pub fn inode_by_path( minix_img: &mut [u8],file_path: &[u8],) -> u16{
             }
         }
         if !found {
-           error!("can't find inode_by_path");
+            error!("can't find inode_by_path");
         }
     }
-   current_inode_num
+    current_inode_num
 }
-
 
 pub fn link_inode(
     minix_img: &mut [u8],
