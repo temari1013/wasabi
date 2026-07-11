@@ -22,6 +22,7 @@ use wasabi::minix::create_file;
 use wasabi::minix::get_inode;
 use wasabi::minix::read_all_directoies;
 use wasabi::minix::write_file;
+use wasabi::minix::create_dir;
 use wasabi::print::hexdump_struct;
 use wasabi::println;
 use wasabi::qemu::exit_qemu;
@@ -98,16 +99,15 @@ fn efi_main(image_handle: EfiHandle, efi_system_table: &EfiSystemTable) {
         unsafe {
             let root_inode = get_inode(1, &MINIX_IMG);
             read_all_directoies(root_inode, &MINIX_IMG);
-            create_file(&mut MINIX_IMG, b"/newfile.txt");
+            create_dir(&mut MINIX_IMG, b"/newdir");
+            create_file(&mut MINIX_IMG, b"/newdir/newfile.txt");
+             let text = b"hello minix filesystem";
+            write_file(&mut MINIX_IMG, b"/newdir/newfile.txt", text);
+            
             info!("read_file_name2");
             read_all_directoies(root_inode, &MINIX_IMG);
-            let text = b"hello minix filesystem";
-            write_file(&mut MINIX_IMG, b"/newfile.txt",text);
-            info!("read_file_name3");
-            read_all_directoies(root_inode, &MINIX_IMG);
         }
-        loop {
-        }
+        loop {}
     };
     spawn_global(abp_uart_task);
     spawn_global(input_task());
