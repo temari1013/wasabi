@@ -1,8 +1,9 @@
+use crate::error;
 use crate::info;
-use core::{mem::size_of, str::Chars};
+use core::{mem::size_of, panic::PanicInfo, str::Chars};
 
 const MINIX_BLOCK_SIZE: usize = 1024;
-const I_DIRECTORY :u16 = 0040000;
+const I_DIRECTORY: u16 = 0040000;
 pub type c_char = i8;
 
 #[repr(C, packed)]
@@ -49,7 +50,7 @@ pub fn read_magic(minix_img: &[u8]) -> u16 {
     super_block.s_magic
 }
 
-pub fn get_inode(inode_num: u16, minix_img: &[u8]) -> *const minix_inode {
+pub fn get_inode(inode_num: u16, minix_img: &[u8]) -> *mut minix_inode {
     // inodeの開始位置ブロックが必要
     let super_block = unsafe {
         *(minix_img.as_ptr().add(MINIX_BLOCK_SIZE) as *const minix_super_block)
@@ -62,13 +63,13 @@ pub fn get_inode(inode_num: u16, minix_img: &[u8]) -> *const minix_inode {
         minix_img
             .as_ptr()
             .add(MINIX_BLOCK_SIZE * inodes_offset)
-            .add((inode_num - 1) as usize * 32) as *const minix_inode
+            .add((inode_num - 1) as usize * 32) as *mut minix_inode
     };
     tmp
 }
 
-pub fn read_file_zone(inode: *const minix_inode , minix_img: &[u8]){
-   let zone_0 = unsafe { (*inode).i_zone[0] as usize };
+pub fn read_file_zone(inode: *const minix_inode, minix_img: &[u8]) {
+    let zone_0 = unsafe { (*inode).i_zone[0] as usize };
     let file_size = unsafe { (*inode).i_size as usize };
 
     if zone_0 == 0 || file_size == 0 {
@@ -76,13 +77,13 @@ pub fn read_file_zone(inode: *const minix_inode , minix_img: &[u8]){
     }
 
     let zone_offset = zone_0 * MINIX_BLOCK_SIZE;
-    
+
     let read_len = core::cmp::min(file_size, MINIX_BLOCK_SIZE);
 
     let file_data = unsafe {
         core::slice::from_raw_parts(
             minix_img.as_ptr().add(zone_offset),
-            read_len
+            read_len,
         )
     };
 
@@ -96,13 +97,14 @@ pub fn read_all_directoies(root_inode: *const minix_inode, minix_img: &[u8]) {
     read_file_name(root_inode, minix_img);
 }
 
+// 全ファイルのファイル名とデータ部を再帰的に取得する
 pub fn read_file_name(root_inode: *const minix_inode, minix_img: &[u8]) {
     // 　渡されたinodeの子を再帰的にたどる
 
     let zone_block = unsafe { (*root_inode).i_zone[0] as usize };
     let zone_offset = zone_block * (MINIX_BLOCK_SIZE as usize);
 
-    for i in 0..32 {   
+    for i in 0..32 {
         let tmp = unsafe {
             *(minix_img.as_ptr().add(zone_offset).add(i * 32)
                 as *const minix_dir_entry)
@@ -125,12 +127,12 @@ pub fn read_file_name(root_inode: *const minix_inode, minix_img: &[u8]) {
 
         // tmp.inode は inode番号を返す
         // カレントディレクトリと未使用inodeを弾く
-        if tmp.name[0] != b'.' as i8  {
+        if tmp.name[0] != b'.' as i8 {
             let is_used = (minix_img[1024 * 2 + (tmp.inode as usize / 8)]
                 & (1 << (tmp.inode as usize % 8)))
                 != 0;
-            let inode = get_inode(tmp.inode , minix_img);
-           if is_used {
+            let inode = get_inode(tmp.inode, minix_img);
+            if is_used {
                 let i_mode = unsafe { (*inode).i_mode };
                 if (i_mode & 0o170000) == 0o040000 {
                     read_file_name(inode, minix_img);
@@ -202,8 +204,7 @@ pub fn read_all_inode(minix_img: &[u8]) {
     }
 }
 
-
-pub fn alloc_inode(minix_img: &[u8]) -> usize{
+pub fn alloc_inode(minix_img: &mut [u8]) -> usize {
     // 現時点ではinodeはファイル作成にしか使わない
     let super_block = unsafe {
         *(minix_img.as_ptr().add(MINIX_BLOCK_SIZE) as *const minix_super_block)
@@ -213,21 +214,27 @@ pub fn alloc_inode(minix_img: &[u8]) -> usize{
     let mut inode_num = 0;
 
     // 使える最初のinodeを見つける
-  for i in 0..max_bits {
+    for i in 1..max_bits {
         let byte_idx = MINIX_BLOCK_SIZE * 2 + (i / 8);
         let bit_idx = i % 8;
         let is_used = (minix_img[byte_idx] & (1u8 << bit_idx)) != 0;
-        if !is_used && i!=0{
+        if !is_used && i != 0 {
             inode_num = i;
+            minix_img[byte_idx] |= 1u8 << bit_idx;
             break;
         }
     }
 
     // 使えるinode番号にinodeを書き込む
-    let node :minix_inode ;
 
-    let inode_table_block = 2 + (super_block.s_imap_blocks as usize) + (super_block.s_zmap_blocks as usize);
-    let inode_offset = (inode_table_block * MINIX_BLOCK_SIZE) + (inode_num - 1) * core::mem::size_of::<minix_inode>();
+    let inode_table_block = 2
+        + (super_block.s_imap_blocks as usize)
+        + (super_block.s_zmap_blocks as usize);
+    let inode_offset = (inode_table_block * MINIX_BLOCK_SIZE)
+        + (inode_num - 1) * core::mem::size_of::<minix_inode>();
+
+    // zone のためにアロックするブロックは、2 + bitmap二種 + inodeのブロック数 +
+    // zone_num
 
     let node = minix_inode {
         i_mode: 0,
@@ -238,16 +245,132 @@ pub fn alloc_inode(minix_img: &[u8]) -> usize{
         i_nlinks: 0,
         i_zone: [0; 9],
     };
-
     unsafe {
-        let target_ptr = minix_img.as_mut_ptr().add(inode_offset) as *mut minix_inode;
+        let target_ptr =
+            minix_img.as_mut_ptr().add(inode_offset) as *mut minix_inode;
         core::ptr::write(target_ptr, node);
     }
     inode_num
 }
- // createは空いてるところにアロックすればok
+// createは空いてるところにアロックすればok
 
- 
-pub fn create_file(minix_img: &[u8], data: * mut u8 , ) ->u8{
+pub fn create_file(minix_img: &mut [u8] , file_path: &[u8]) -> *mut minix_inode {
+    // inodeと同じ要領で空いているzoneを探す
+    // zone はブロック単位で割り当てるのが差異
+    let super_block = unsafe {
+        *(minix_img.as_ptr().add(MINIX_BLOCK_SIZE) as *const minix_super_block)
+    };
 
+    let inode_num = alloc_inode(minix_img);
+    if inode_num == 0 {
+        error!("alloc inode failed")
+    }
+
+    let last_slash_idx = file_path.iter().rposition(|&b| b == b'/');
+
+    let (parent_path, file_name) = match last_slash_idx {
+        Some(idx) => {
+            let parent = if idx == 0 {
+                b"/".as_slice() 
+            } else {
+                &file_path[..idx] 
+            };
+            let name = &file_path[idx + 1..]; 
+            (parent, name)
+        }
+        None => {
+            (b"/".as_slice(), file_path)
+        }
+    };
+
+    let parent_inode = inode_by_path(minix_img,parent_path );
+    link_inode(minix_img, parent_inode, inode_num as u16, file_name);
+    // link_inode を呼び出して作成したinodeを書き込む必要がある
+    // それって本来的にはファイルのパス解決が必要なのでは?
+    // => create_file は, inodeをアロックする処理であるべき。
+
+    let ret = get_inode(inode_num as u16, minix_img);
+    ret
+}
+
+pub fn inode_by_path( minix_img: &mut [u8],file_path: &[u8],) -> u16{
+    // ファイルパスを分割する
+    // 分割したパス事にinodeを取得し、そのinodeを親に検索して末尾までたどりつけると良い
+    let components = file_path
+    .split(|&b| b == b'/')
+    .filter(|comp| !comp.is_empty());
+
+   let mut current_inode_num = 1;
+
+    for comp in components{
+
+        let current_inode_ptr = get_inode(current_inode_num, minix_img);
+
+        let zone_block = unsafe { (*current_inode_ptr).i_zone[0] as usize };
+        let zone_offset = zone_block * MINIX_BLOCK_SIZE;
+        let mut found = false;
+
+        for i in 0..32 {
+            let tmp = unsafe {
+                *(minix_img.as_ptr().add(zone_offset).add(i * 32)
+                    as *const minix_dir_entry)
+            };
+            if tmp.inode == 0 {
+                continue;
+            }
+            let name_len = tmp.name.iter().position(|&c| c == 0).unwrap_or(30);
+            let utf8_bytes = unsafe {
+                core::slice::from_raw_parts(
+                    tmp.name.as_ptr() as *const u8,
+                    name_len,
+                )
+            };
+            if utf8_bytes == comp {
+                current_inode_num = tmp.inode;
+                found = true;
+                break;
+            }
+        }
+        if !found {
+           error!("can't find inode_by_path");
+        }
+    }
+   current_inode_num
+}
+
+
+pub fn link_inode(
+    minix_img: &mut [u8],
+    parent_inode_num: u16,
+    new_inode_num: u16,
+    file_name: &[u8],
+) -> bool {
+    let parent_inode_ptr = get_inode(parent_inode_num, minix_img);
+    if parent_inode_ptr.is_null() {
+        return false;
+    }
+    let parent_inode = unsafe { &*parent_inode_ptr };
+    let zone0_offset = parent_inode.i_zone[0] as usize * MINIX_BLOCK_SIZE;
+
+    let entries = unsafe {
+        core::slice::from_raw_parts_mut(
+            minix_img.as_mut_ptr().add(zone0_offset) as *mut minix_dir_entry,
+            32,
+        )
+    };
+
+    for entry in entries.iter_mut() {
+        if entry.inode == 0 {
+            entry.inode = new_inode_num;
+            entry.name.fill(0);
+
+            let copy_len = core::cmp::min(file_name.len(), 30);
+            for i in 0..copy_len {
+                entry.name[i] = file_name[i] as i8;
+            }
+
+            return true;
+        }
+    }
+    false
 }
