@@ -1,6 +1,6 @@
 use crate::error;
 use crate::info;
-use core::{mem::size_of, panic::PanicInfo, str::Chars};
+
 macro_rules! function_name {
     () => {{
         fn f() {}
@@ -68,27 +68,31 @@ pub struct minix3_inode {
 }
 impl minix3_inode {
     pub fn get_inode(
-    &self,
-    inode_num: u32,
-    block_size: usize,
-    minix_img: &mut [u8],
-) -> *mut minix3_inode {
-    if inode_num == 0 { return core::ptr::null_mut(); }
+        &self,
+        inode_num: u32,
+        block_size: usize,
+        minix_img: &mut [u8],
+    ) -> *mut minix3_inode {
+        if inode_num == 0 {
+            return core::ptr::null_mut();
+        }
 
-    let super_block = unsafe {
-        *(minix_img.as_ptr().add(block_size) as *const minix3_super_block)
-    };
-    let inode_table_block = 2 + super_block.s_imap_blocks as usize + super_block.s_zmap_blocks as usize;
-    let base_offset = inode_table_block * block_size;
-    let inode_idx = (inode_num - 1) as usize * core::mem::size_of::<minix3_inode>();
-    let total_offset = base_offset + inode_idx;
+        let super_block = unsafe {
+            *(minix_img.as_ptr().add(block_size) as *const minix3_super_block)
+        };
+        let inode_table_block = 2
+            + super_block.s_imap_blocks as usize
+            + super_block.s_zmap_blocks as usize;
+        let base_offset = inode_table_block * block_size;
+        let inode_idx =
+            (inode_num - 1) as usize * core::mem::size_of::<minix3_inode>();
+        let total_offset = base_offset + inode_idx;
 
-    // info!("DEBUG: inode_table_block={}, base_offset={}, total_offset={}", inode_table_block, base_offset, total_offset);
+        // info!("DEBUG: inode_table_block={}, base_offset={}, total_offset={}",
+        // inode_table_block, base_offset, total_offset);
 
-    unsafe {
-        minix_img.as_mut_ptr().add(total_offset) as *mut minix3_inode
+        unsafe { minix_img.as_mut_ptr().add(total_offset) as *mut minix3_inode }
     }
-}
 
     pub fn new(mode: u16) -> minix3_inode {
         info!("Current function: {}", function_name!());
@@ -106,7 +110,7 @@ impl minix3_inode {
         node
     }
 
-    // 親ディレクトリ直下のファイルを名前一致で検索して、inodeのポインタを返す
+    // 親ディレクトリ直下のファイルを名前一致で検索して、inodeの番号を返す
     pub fn lookup(
         &self,
         parent_inode: *mut minix3_inode,
@@ -114,7 +118,6 @@ impl minix3_inode {
         minix_img: &[u8],
         block_size: usize,
     ) -> u32 {
-
         if (self.i_mode & 0x4000) == 0 {
             error!("invalid i_mode");
             return 0;
@@ -122,8 +125,8 @@ impl minix3_inode {
         let parent_zone_block_num =
             unsafe { (*parent_inode).i_zone[0] as usize };
 
-        
-        let entries_count = block_size / core::mem::size_of::<minix3_dir_entry>();
+        let entries_count =
+            block_size / core::mem::size_of::<minix3_dir_entry>();
 
         for i in 0..entries_count {
             let dir_entry = unsafe {
@@ -210,49 +213,53 @@ impl minix3_inode {
     }
 
     fn alloc_inode(
-    &self,
-    minix_img: &mut [u8],
-    block_size: usize,
-    mode: u16,
-) -> u32 {
-    let super_block = unsafe {
-        *(minix_img.as_ptr().add(block_size) as *const minix3_super_block)
-    };
+        &self,
+        minix_img: &mut [u8],
+        block_size: usize,
+        mode: u16,
+    ) -> u32 {
+        let super_block = unsafe {
+            *(minix_img.as_ptr().add(block_size) as *const minix3_super_block)
+        };
 
-    let imap_start_block = 2;
-    let zmap_start_block = imap_start_block + super_block.s_imap_blocks as usize;
-    let inode_table_block = zmap_start_block + super_block.s_zmap_blocks as usize;
+        let imap_start_block = 2;
+        let zmap_start_block =
+            imap_start_block + super_block.s_imap_blocks as usize;
+        let inode_table_block =
+            zmap_start_block + super_block.s_zmap_blocks as usize;
 
-    let max_bits = (super_block.s_imap_blocks as usize) * block_size * 8;
-    let mut inode_num = 0;
+        let max_bits = (super_block.s_imap_blocks as usize) * block_size * 8;
+        let mut inode_num = 0;
 
-    for i in 1..max_bits {
-        let bit_index = i - 1; 
-        let byte_idx = (imap_start_block * block_size) + (bit_index / 8);
-        let bit_idx = bit_index % 8;
-        
-        if (minix_img[byte_idx] & (1u8 << bit_idx)) == 0 {
-            inode_num = i;
-            minix_img[byte_idx] |= 1u8 << bit_idx;
-            break;
+        // inode番号0は無効
+        for i in 1..max_bits {
+            let bit_index = i - 1;
+            let byte_idx = (imap_start_block * block_size) + (bit_index / 8);
+            let bit_idx = bit_index % 8;
+
+            if (minix_img[byte_idx] & (1u8 << bit_idx)) == 0 {
+                inode_num = i;
+                minix_img[byte_idx] |= 1u8 << bit_idx;
+                break;
+            }
         }
-    }
 
-    if inode_num == 0 {
-        error!("No free inode found");
-        return 0;
-    }
+        if inode_num == 0 {
+            error!("No free inode found");
+            return 0;
+        }
 
-    let inode_offset = (inode_table_block * block_size)
-        + ((inode_num - 1) * core::mem::size_of::<minix3_inode>());
+        let inode_offset = (inode_table_block * block_size)
+            + ((inode_num - 1) * core::mem::size_of::<minix3_inode>());
 
-    let node = Self::new(mode);
-    unsafe {
-        let target_ptr = minix_img.as_mut_ptr().add(inode_offset) as *mut minix3_inode;
-        core::ptr::write(target_ptr, node);
+        let node = Self::new(mode);
+        unsafe {
+            let target_ptr =
+                minix_img.as_mut_ptr().add(inode_offset) as *mut minix3_inode;
+            core::ptr::write(target_ptr, node);
+        }
+        inode_num as u32
     }
-    inode_num as u32
-}
     fn link_inode(
         &self,
         minix_img: &mut [u8],
@@ -263,7 +270,7 @@ impl minix3_inode {
     ) -> Result<(), bool> {
         let parent_inode_ptr =
             self.get_inode(parent_inode_num, block_size, minix_img);
-            
+
         if parent_inode_ptr.is_null() {
             error!("link_inode: Parent inode is null");
             return Err(false);
@@ -271,9 +278,11 @@ impl minix3_inode {
 
         let parent_inode = unsafe { &mut *parent_inode_ptr };
         let zone0_offset = parent_inode.i_zone[0] as usize * block_size;
-        // info!("DEBUG: link_inode writing '{}' to offset {}", core::str::from_utf8(file_name).unwrap_or("?"), zone0_offset);
+        // info!("DEBUG: link_inode writing '{}' to offset {}",
+        // core::str::from_utf8(file_name).unwrap_or("?"), zone0_offset);
 
-        let entries_count = block_size / core::mem::size_of::<minix3_dir_entry>();
+        let entries_count =
+            block_size / core::mem::size_of::<minix3_dir_entry>();
 
         let entries = unsafe {
             core::slice::from_raw_parts_mut(
@@ -283,18 +292,17 @@ impl minix3_inode {
             )
         };
 
-       for (i, entry) in entries.iter_mut().enumerate() {
-        if entry.inode == 0 {
-            entry.inode = new_inode_num;
-            entry.name.fill(0);
+        for (i, entry) in entries.iter_mut().enumerate() {
+            if entry.inode == 0 {
+                entry.inode = new_inode_num;
+                entry.name.fill(0);
 
                 let copy_len = core::cmp::min(file_name.len(), 60);
                 for i in 0..copy_len {
                     entry.name[i] = file_name[i];
                 }
                 // info!("DEBUG: link_inode success at entry index {}", i);
-            return Ok(());
-               ;
+                return Ok(());
             }
         }
         Err(false)
@@ -349,8 +357,7 @@ impl minix3_inode {
         let block_offset = 2 + super_block.s_imap_blocks as usize;
         let max_bits = (super_block.s_zmap_blocks as usize) * block_size * 8;
 
-        // Minix zmap仕様:
-        // bit 0 は予約(常に1)
+        // Minix zmap仕様
         // bit 1 が最初のデータゾーン(s_firstdatazone)に対応
         // つまり、bit j は「ゾーン j + s_firstdatazone - 1」を指す
         for j in 1..max_bits {
@@ -359,9 +366,9 @@ impl minix3_inode {
             let is_used = (minix_img[byte_idx] & (1u8 << bit_idx)) != 0;
 
             if !is_used {
-                // zmapのビットインデックス(j)から、実際の物理ブロック番号を逆算する
-                let allocated_zone = j + (super_block.s_firstdatazone as usize) - 1;
-                
+                let allocated_zone =
+                    j + (super_block.s_firstdatazone as usize) - 1;
+
                 let inode = unsafe { &mut *inode_ptr };
 
                 if inode.i_zone[0] == 0 {
@@ -372,7 +379,8 @@ impl minix3_inode {
                     // 新規割り当てされたデータブロックの初期化
                     let data_offset = allocated_zone * block_size;
                     if data_offset + block_size <= minix_img.len() {
-                        minix_img[data_offset..data_offset + block_size].fill(0);
+                        minix_img[data_offset..data_offset + block_size]
+                            .fill(0);
                     }
 
                     return allocated_zone as u32;
@@ -532,8 +540,10 @@ impl minix3_inode {
     ) {
         // info!("Current function: {}", function_name!());
         let inode_ptr = self.get_inode(inode_num, block_size, minix_img);
-if inode_ptr.is_null() { return; }
-let inode = unsafe { &*inode_ptr };
+        if inode_ptr.is_null() {
+            return;
+        }
+        let inode = unsafe { &*inode_ptr };
 
         if (inode.i_mode & 0x4000) == 0 {
             return;
@@ -590,9 +600,9 @@ let inode = unsafe { &*inode_ptr };
 
     pub fn show_directry_tree(&self, minix_img: &mut [u8], block_size: usize) {
         let root_ptr = self.get_inode(1, block_size, minix_img);
-    if !root_ptr.is_null() {
-        self.print_tree(minix_img, block_size, 1, 1);
-    }
+        if !root_ptr.is_null() {
+            self.print_tree(minix_img, block_size, 1, 1);
+        }
         info!("Current function: {}", function_name!());
         info!("/");
         self.print_tree(minix_img, block_size, 1, 1);
@@ -600,3 +610,28 @@ let inode = unsafe { &*inode_ptr };
 }
 
 pub fn delete() {}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use core::mem::size_of;
+    use core::ptr::read_unaligned;
+
+ pub static  MINIX3_IMG: [u8; 2097152] = *include_bytes!("minix3.img");
+ pub static  mut MINIX3_IMG_MUT: [u8; 2097152] = *include_bytes!("minix3.img");
+    #[test_case]
+    fn lookup_inode_iter_test() {
+        let block_size = 1024;
+        let img_ptr = MINIX3_IMG.as_ptr();
+
+        let super_block_ptr = unsafe { img_ptr.add(block_size) as *const minix3_super_block };
+        let super_block = unsafe { read_unaligned(super_block_ptr) };
+        let inode_table_block =  2 + super_block.s_imap_blocks as usize + super_block.s_zmap_blocks as usize;
+
+        let root_inode_ptr = unsafe { img_ptr.add(inode_table_block * block_size) as *mut minix3_inode };
+        let root_inode = unsafe { read_unaligned(root_inode_ptr) };
+
+        let target_inode_num = root_inode.lookup(root_inode_ptr, b"dir", &MINIX3_IMG, block_size);
+        assert_eq!(target_inode_num, 2);
+    }
+}
