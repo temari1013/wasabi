@@ -1,8 +1,5 @@
-use crate::error;
+/*use crate::error;
 use crate::info;
-use core::file;
-
-
 
 use core::{mem::size_of, panic::PanicInfo, str::Chars};
 
@@ -17,7 +14,6 @@ macro_rules! function_name {
         name.strip_suffix("::f").unwrap()
     }};
 }
-
 
 const MINIX_BLOCK_SIZE: usize = 1024;
 const I_DIRECTORY: u16 = 0040000;
@@ -68,7 +64,7 @@ pub fn read_magic(minix_img: &[u8]) -> u16 {
 }
 
 pub fn get_inode(inode_num: u16, minix_img: &[u8]) -> *mut minix_inode {
-     info!("Current function: {}", function_name!());
+    info!("Current function: {}", function_name!());
     // inodeの開始位置ブロックが必要
     let super_block = unsafe {
         *(minix_img.as_ptr().add(MINIX_BLOCK_SIZE) as *const minix_super_block)
@@ -87,12 +83,12 @@ pub fn get_inode(inode_num: u16, minix_img: &[u8]) -> *mut minix_inode {
 }
 
 pub fn read_file_zone(inode: *const minix_inode, minix_img: &[u8]) {
-     info!("Current function: {}", function_name!());
+    info!("Current function: {}", function_name!());
     let zone_0 = unsafe { (*inode).i_zone[0] as usize };
     let file_size = unsafe { (*inode).i_size as usize };
 
     if zone_0 == 0 || file_size == 0 {
-       //  info!("l95 zone_0 == 0 || file_size == 0" );
+        //  info!("l95 zone_0 == 0 || file_size == 0" );
         return;
     }
 
@@ -113,14 +109,14 @@ pub fn read_file_zone(inode: *const minix_inode, minix_img: &[u8]) {
 }
 
 pub fn read_all_directoies(root_inode: *const minix_inode, minix_img: &[u8]) {
-     info!("Current function: {}", function_name!());
+    info!("Current function: {}", function_name!());
     info!("directory:");
     read_file_name(root_inode, minix_img);
 }
 
 // 全ファイルのファイル名とデータ部を再帰的に取得する
 pub fn read_file_name(root_inode: *const minix_inode, minix_img: &[u8]) {
-     info!("Current function: {}", function_name!());
+    info!("Current function: {}", function_name!());
     // 　渡されたinodeの子を再帰的にたどる
 
     let zone_block = unsafe { (*root_inode).i_zone[0] as usize };
@@ -129,7 +125,7 @@ pub fn read_file_name(root_inode: *const minix_inode, minix_img: &[u8]) {
     }
     let zone_offset = zone_block * (MINIX_BLOCK_SIZE as usize);
     let file_size = unsafe { (*root_inode).i_size as usize };
-let num_entries = core::cmp::min(file_size / 32, 32);
+    let num_entries = core::cmp::min(file_size / 32, 32);
 
     for i in 0..num_entries {
         let tmp = unsafe {
@@ -172,7 +168,7 @@ let num_entries = core::cmp::min(file_size / 32, 32);
 }
 
 pub fn read_all_inode(minix_img: &[u8]) {
-     info!("Current function: {}", function_name!());
+    info!("Current function: {}", function_name!());
     // イメージのバイナリを渡される
     let super_block = unsafe {
         *(minix_img.as_ptr().add(MINIX_BLOCK_SIZE) as *const minix_super_block)
@@ -215,7 +211,7 @@ pub fn read_all_inode(minix_img: &[u8]) {
 
             //　一旦バイト列として読み出す。
             // この中にはファイルの名前とinodeが格納されているはず
-            
+
             for i in 0..32 {
                 let tmp = unsafe {
                     // as const minix_dir_entry失敗したらどうなるのか調査が必要
@@ -234,7 +230,7 @@ pub fn read_all_inode(minix_img: &[u8]) {
 }
 
 pub fn alloc_inode(minix_img: &mut [u8]) -> usize {
-     info!("Current function: {}", function_name!());
+    info!("Current function: {}", function_name!());
     // 現時点ではinodeはファイル作成にしか使わない
     let super_block = unsafe {
         *(minix_img.as_ptr().add(MINIX_BLOCK_SIZE) as *const minix_super_block)
@@ -286,7 +282,7 @@ pub fn alloc_inode(minix_img: &mut [u8]) -> usize {
 // createは空いてるところにアロックすればok
 
 pub fn create_file(minix_img: &mut [u8], file_path: &[u8]) -> *mut minix_inode {
-     info!("Current function: {}", function_name!());
+    info!("Current function: {}", function_name!());
 
     // inodeと同じ要領で空いているzoneを探す
     // zone はブロック単位で割り当てるのが差異
@@ -325,7 +321,7 @@ pub fn create_file(minix_img: &mut [u8], file_path: &[u8]) -> *mut minix_inode {
 }
 
 pub fn inode_by_path(minix_img: &mut [u8], file_path: &[u8]) -> u16 {
-     info!("Current function: {}", function_name!());
+    info!("Current function: {}", function_name!());
     // ファイルパスを分割する
     // 分割したパス事にinodeを取得し、
     // そのinodeを親に検索して末尾までたどりつけると良い
@@ -380,7 +376,7 @@ pub fn link_inode(
     if parent_inode_ptr.is_null() {
         return false;
     }
-  let parent_inode = unsafe { &mut *parent_inode_ptr };
+    let parent_inode = unsafe { &mut *parent_inode_ptr };
     let zone0_offset = parent_inode.i_zone[0] as usize * MINIX_BLOCK_SIZE;
 
     let entries = unsafe {
@@ -406,7 +402,7 @@ pub fn link_inode(
 }
 
 pub fn alloc_zone(minix_img: &mut [u8], inode_num: u16) -> u16 {
-     info!("Current function: {}", function_name!());
+    info!("Current function: {}", function_name!());
     let inode = get_inode(inode_num, minix_img);
     let super_block = unsafe {
         *(minix_img.as_ptr().add(MINIX_BLOCK_SIZE) as *const minix_super_block)
@@ -436,7 +432,7 @@ pub fn alloc_zone(minix_img: &mut [u8], inode_num: u16) -> u16 {
 }
 
 pub fn write_file(minix_img: &mut [u8], file_path: &[u8], data: &[u8]) {
-     info!("Current function: {}", function_name!());
+    info!("Current function: {}", function_name!());
     let inode_num = inode_by_path(minix_img, file_path);
     let inode = get_inode(inode_num, minix_img);
     let mut zone = unsafe { (*inode).i_zone[0] };
@@ -461,7 +457,7 @@ pub fn write_file(minix_img: &mut [u8], file_path: &[u8], data: &[u8]) {
 
 // ディレクトリエントリを用意する
 pub fn new_dir_entry(inode_num: u16, file_name: &[u8]) -> minix_dir_entry {
-     info!("Current function: {}", function_name!());
+    info!("Current function: {}", function_name!());
     let mut name = [0; 30];
     let copy_len = file_name.len();
 
@@ -476,7 +472,7 @@ pub fn new_dir_entry(inode_num: u16, file_name: &[u8]) -> minix_dir_entry {
 }
 
 pub fn create_dir(minix_img: &mut [u8], dir_path: &[u8]) -> bool {
-     info!("Current function: {}", function_name!());
+    info!("Current function: {}", function_name!());
     let last_slash_idx = dir_path.iter().rposition(|&b| b == b'/');
 
     let (parent_path, file_name) = match last_slash_idx {
@@ -540,3 +536,4 @@ pub fn create_dir(minix_img: &mut [u8], dir_path: &[u8]) -> bool {
 
     link_inode(minix_img, parent_inode_num, new_inode_num, file_name)
 }
+*/

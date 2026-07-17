@@ -21,6 +21,7 @@ pub mod init;
 pub mod input;
 pub mod keyboard;
 pub mod minix;
+pub mod minixv3;
 pub mod mmio;
 pub mod mutex;
 pub mod pci;

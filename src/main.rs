@@ -18,11 +18,7 @@ use wasabi::init::init_hpet;
 use wasabi::init::init_paging;
 use wasabi::init::init_pci;
 use wasabi::input::input_task;
-use wasabi::minix::create_file;
-use wasabi::minix::get_inode;
-use wasabi::minix::read_all_directoies;
-use wasabi::minix::write_file;
-use wasabi::minix::create_dir;
+use wasabi::minixv3::minix3_inode;
 use wasabi::print::hexdump_struct;
 use wasabi::println;
 use wasabi::qemu::exit_qemu;
@@ -36,7 +32,7 @@ use wasabi::warn;
 use wasabi::x86::init_exceptions;
 
 pub static mut MINIX_IMG: [u8; 2097152] = *include_bytes!("minix.img");
-
+pub static mut MINIX3_IMG: [u8; 2097152] = *include_bytes!("minix3.img");
 #[no_mangle]
 fn efi_main(image_handle: EfiHandle, efi_system_table: &EfiSystemTable) {
     println!("Booting WasabiOS...");
@@ -96,17 +92,26 @@ fn efi_main(image_handle: EfiHandle, efi_system_table: &EfiSystemTable) {
             write_volatile((base_addr + 4) as *mut u8, 0x0B);
         }
         info!("read_file_name");
-        unsafe {
-            let root_inode = get_inode(1, &MINIX_IMG);
-            read_all_directoies(root_inode, &MINIX_IMG);
-            create_dir(&mut MINIX_IMG, b"/newdir");
-            create_file(&mut MINIX_IMG, b"/newdir/newfile.txt");
-             let text = b"hello minix filesystem";
-            write_file(&mut MINIX_IMG, b"/newdir/newfile.txt", text);
-            
-            info!("read_file_name2");
-            read_all_directoies(root_inode, &MINIX_IMG);
-        }
+
+        const BLOCK_SIZE: usize = 1024;
+
+        let fs = minix3_inode::new(0);
+        let img = unsafe { &mut MINIX3_IMG };
+        fs.show_directry_tree(img, BLOCK_SIZE);
+        let tmp = fs.read(img, b"dir/test.txt", BLOCK_SIZE);
+        let tmp2 = core::str::from_utf8(&tmp).unwrap_or("<invalid utf8>");
+        info!("{}", tmp2);
+        info!("read_file_name2");
+        fs.mkdir(img, b"/newdir", BLOCK_SIZE);
+        fs.show_directry_tree(img, BLOCK_SIZE);
+        info!("read_file_name3");
+        fs.create_file(img, BLOCK_SIZE, b"/newdir/newfile.txt");
+        fs.show_directry_tree(img, BLOCK_SIZE);
+        info!("read_file_nam4");
+        let text = b"hello";
+        fs.write(img, b"/newdir/newfile.txt", BLOCK_SIZE, text);
+
+        fs.show_directry_tree(img, BLOCK_SIZE);
         loop {}
     };
     spawn_global(abp_uart_task);
