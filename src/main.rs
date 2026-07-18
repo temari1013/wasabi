@@ -112,10 +112,9 @@ fn efi_main(image_handle: EfiHandle, efi_system_table: &EfiSystemTable) {
         fs.write(img, b"/newdir/newfile.txt", BLOCK_SIZE, text);
 
         fs.show_directry_tree(img, BLOCK_SIZE);
-        let tmp = fs.lookup_iter(b"/dir/nested/syouyu.txt", img, BLOCK_SIZE);
+        let tmp = fs.lookup_iter(b"/dir", img, BLOCK_SIZE);
         info!("{}", tmp);
         let tmp1 = fs.get_inode(tmp, BLOCK_SIZE, img);
-        fs.write(img, b"/dir/nested/syouyu.txt", BLOCK_SIZE, b"test");
         let hoge = unsafe { *(tmp1 as *const minix3_inode) };
         let fuga = hoge.i_zone[0];
         info!("{}", fuga);

@@ -668,6 +668,30 @@ mod test {
         let root_inode = unsafe { read_unaligned(root_inode_ptr) };
 
         root_inode.create_file(&mut minix_img, BLOCK_SIZE, b"dir/newfile.txt");
+
+        // 確認すべきは親ディレクトリのzone[0]にnewfile.txtがファイル名のディレクトリエントリがあるかどうか
+        let offset = 48* BLOCK_SIZE;
+
+        let entries_count =
+            BLOCK_SIZE / core::mem::size_of::<minix3_dir_entry>();
+            let mut assertion = false;
+        for i in 0..entries_count {
+            let dir_entry = unsafe {
+                *(minix_img
+                    .as_ptr()
+                    .add(offset + i * 64)
+                    as *const minix3_dir_entry)
+            };
+
+            let len = dir_entry.name.iter().position(|&c| c == 0).unwrap_or(60);
+            let entry_name = &dir_entry.name[..len];
+            if entry_name == b"newfile.txt" {
+                assertion = true;
+                break;
+            }
+        }
+        assert!(assertion == true);
+        
     }
 
     #[test_case]
