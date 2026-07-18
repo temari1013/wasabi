@@ -617,21 +617,92 @@ mod test {
     use core::mem::size_of;
     use core::ptr::read_unaligned;
 
- pub static  MINIX3_IMG: [u8; 2097152] = *include_bytes!("minix3.img");
- pub static  mut MINIX3_IMG_MUT: [u8; 2097152] = *include_bytes!("minix3.img");
+    // 引数の型の関係でmutableとそうでないものの両方の読み込み方をする
+    pub static MINIX3_IMG: [u8; 2097152] = *include_bytes!("minix3.img");
+    pub static BLOCK_SIZE: usize = 1024;
+
+    // inodeのメソッドとして実装しているのでinodeを取ってくる処理が必要
+    fn get_root_inode_ptr_mut(
+        img_ptr: *mut u8,
+        block_size: usize,
+    ) -> *mut minix3_inode {
+        unsafe {
+            let super_block_ptr =
+                img_ptr.add(block_size) as *const minix3_super_block;
+            let super_block = read_unaligned(super_block_ptr);
+            let inode_table_block = 2
+                + super_block.s_imap_blocks as usize
+                + super_block.s_zmap_blocks as usize;
+
+            let base_offset = inode_table_block * block_size;
+
+            img_ptr.add(base_offset) as *mut minix3_inode
+        }
+    }
+
+    fn get_root_inode_ptr(
+        img_ptr: *const u8,
+        block_size: usize,
+    ) -> *const minix3_inode {
+        unsafe {
+            let super_block_ptr =
+                img_ptr.add(block_size) as *const minix3_super_block;
+            let super_block = read_unaligned(super_block_ptr);
+            let inode_table_block = 2
+                + super_block.s_imap_blocks as usize
+                + super_block.s_zmap_blocks as usize;
+
+            let base_offset = inode_table_block * block_size;
+
+            img_ptr.add(base_offset) as *const minix3_inode
+        }
+    }
+
     #[test_case]
-    fn lookup_inode_iter_test() {
-        let block_size = 1024;
-        let img_ptr = MINIX3_IMG.as_ptr();
+    fn file_create_test() {
+        // ファイルを作成し、想定通りに作成できているかを見る
+        let mut minix_img = include_bytes!("minix3.img").to_vec();
+        let img_ptr = minix_img.as_mut_ptr();
 
-        let super_block_ptr = unsafe { img_ptr.add(block_size) as *const minix3_super_block };
-        let super_block = unsafe { read_unaligned(super_block_ptr) };
-        let inode_table_block =  2 + super_block.s_imap_blocks as usize + super_block.s_zmap_blocks as usize;
-
-        let root_inode_ptr = unsafe { img_ptr.add(inode_table_block * block_size) as *mut minix3_inode };
+        let root_inode_ptr = get_root_inode_ptr_mut(img_ptr, BLOCK_SIZE);
         let root_inode = unsafe { read_unaligned(root_inode_ptr) };
 
-        let target_inode_num = root_inode.lookup(root_inode_ptr, b"dir", &MINIX3_IMG, block_size);
+        root_inode.create_file(&mut minix_img, BLOCK_SIZE, b"dir/newfile.txt");
+    }
+
+    #[test_case]
+    fn file_write_test() {
+        // すでにイメージファイルにあるものに書き込み、
+        // 想定通りに書き込めているかを見る
+        let mut minix_img = include_bytes!("minix3.img").to_vec();
+        let img_ptr = minix_img.as_mut_ptr();
+
+        let root_inode_ptr = get_root_inode_ptr_mut(img_ptr, BLOCK_SIZE);
+        let root_inode = unsafe { read_unaligned(root_inode_ptr) };
+
+        root_inode.write(
+            &mut minix_img,
+            b"/dir/nested/syouyu.txt",
+            BLOCK_SIZE,
+            b"test",
+        );
+    }
+
+    #[test_case]
+    fn lookup_inode_iter_test() {
+        //  lookup_inodeにroodeのポインタと探すディレクトリ、
+        // その他引数を渡すと想定通りの番号が帰ってくることを期待する。
+        let img_ptr = MINIX3_IMG.as_ptr();
+
+        let root_inode_ptr = get_root_inode_ptr(img_ptr, BLOCK_SIZE);
+        let root_inode = unsafe { read_unaligned(root_inode_ptr) };
+
+        let target_inode_num = root_inode.lookup(
+            root_inode_ptr as *mut minix3_inode,
+            b"dir",
+            &MINIX3_IMG,
+            BLOCK_SIZE,
+        );
         assert_eq!(target_inode_num, 2);
     }
 }
