@@ -669,17 +669,16 @@ mod test {
 
         root_inode.create_file(&mut minix_img, BLOCK_SIZE, b"dir/newfile.txt");
 
-        // 確認すべきは親ディレクトリのzone[0]にnewfile.txtがファイル名のディレクトリエントリがあるかどうか
-        let offset = 48* BLOCK_SIZE;
+        // 確認すべきは親ディレクトリのzone[0]にnewfile.
+        // txtがファイル名のディレクトリエントリがあるかどうか
+        let offset = 48 * BLOCK_SIZE;
 
         let entries_count =
             BLOCK_SIZE / core::mem::size_of::<minix3_dir_entry>();
-            let mut assertion = false;
+        let mut assertion = false;
         for i in 0..entries_count {
             let dir_entry = unsafe {
-                *(minix_img
-                    .as_ptr()
-                    .add(offset + i * 64)
+                *(minix_img.as_ptr().add(offset + i * 64)
                     as *const minix3_dir_entry)
             };
 
@@ -693,7 +692,23 @@ mod test {
             }
         }
         assert!(assertion == true);
-        
+    }
+
+    #[test_case]
+    fn read_test() {
+        let img_ptr = MINIX3_IMG.as_ptr();
+
+        let root_inode_ptr = get_root_inode_ptr(img_ptr, BLOCK_SIZE);
+        let root_inode = unsafe { read_unaligned(root_inode_ptr) };
+
+        let data = root_inode.read(
+            unsafe { &mut *(img_ptr as *mut [u8; 2097152]) },
+            b"dir/test.txt",
+            BLOCK_SIZE,
+        );
+        let expected = b"hello";
+        assert!(data.len() >= expected.len());
+        assert_eq!(&data[..expected.len()], expected);
     }
 
     #[test_case]
@@ -705,19 +720,17 @@ mod test {
         let root_inode_ptr = get_root_inode_ptr_mut(img_ptr, BLOCK_SIZE);
         let root_inode = unsafe { read_unaligned(root_inode_ptr) };
 
-        root_inode.mkdir(&mut minix_img,  b"dir/nested/new_dir" , BLOCK_SIZE,);
+        root_inode.mkdir(&mut minix_img, b"dir/nested/new_dir", BLOCK_SIZE);
 
         // 親ディレクトリに作成した名前のディレクトリエントリが配置されているかどうかとinodeの値の検証
-        let offset = 49* BLOCK_SIZE;
+        let offset = 49 * BLOCK_SIZE;
 
         let entries_count =
             BLOCK_SIZE / core::mem::size_of::<minix3_dir_entry>();
-            let mut assertion = false;
+        let mut assertion = false;
         for i in 0..entries_count {
             let dir_entry = unsafe {
-                *(minix_img
-                    .as_ptr()
-                    .add(offset + i * 64)
+                *(minix_img.as_ptr().add(offset + i * 64)
                     as *const minix3_dir_entry)
             };
 
@@ -729,7 +742,6 @@ mod test {
             }
         }
         assert!(assertion == true);
-        
     }
 
     #[test_case]
@@ -770,5 +782,22 @@ mod test {
             BLOCK_SIZE,
         );
         assert_eq!(target_inode_num, 2);
+    }
+
+     #[test_case]
+    fn lookup_inode_iter_test() {
+        //  lookup_inodeにroodeのポインタと探すディレクトリ、
+        // その他引数を渡すと想定通りの番号が帰ってくることを期待する。
+        let img_ptr = MINIX3_IMG.as_ptr();
+
+        let root_inode_ptr = get_root_inode_ptr(img_ptr, BLOCK_SIZE);
+        let root_inode = unsafe { read_unaligned(root_inode_ptr) };
+
+        let target_inode_num = root_inode.lookup_iter(
+            b"dir/nested",
+            unsafe { &mut *(img_ptr as *mut [u8; 2097152]) },
+             BLOCK_SIZE
+        );
+        assert_eq!(target_inode_num, 3);
     }
 }

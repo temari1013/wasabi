@@ -109,13 +109,8 @@ fn efi_main(image_handle: EfiHandle, efi_system_table: &EfiSystemTable) {
         fs.show_directry_tree(img, BLOCK_SIZE);
         info!("read_file_name4");
 
-        fs.show_directry_tree(img, BLOCK_SIZE);
-        let tmp = fs.lookup_iter(b"/dir/nested", img, BLOCK_SIZE);
-        info!("{}", tmp);
-        let tmp1 = fs.get_inode(tmp, BLOCK_SIZE, img);
-        let hoge = unsafe { *(tmp1 as *const minix3_inode) };
-        let fuga = hoge.i_zone[0];
-        info!("{}", fuga);
+        let tmp2 = fs.read(img, b"dir/test.txt", BLOCK_SIZE);
+        info!("{:#?}", tmp2);
         loop {}
     };
     spawn_global(abp_uart_task);
