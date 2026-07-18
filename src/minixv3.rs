@@ -686,6 +686,44 @@ mod test {
             let len = dir_entry.name.iter().position(|&c| c == 0).unwrap_or(60);
             let entry_name = &dir_entry.name[..len];
             if entry_name == b"newfile.txt" {
+                // TODO : 紐づいているinodeを確認する
+                let inode = dir_entry.inode;
+                assertion = true;
+                break;
+            }
+        }
+        assert!(assertion == true);
+        
+    }
+
+    #[test_case]
+    fn mkdir_test() {
+        // ディレクトリを作成し、想定通りに作成できているかを見る
+        let mut minix_img = include_bytes!("minix3.img").to_vec();
+        let img_ptr = minix_img.as_mut_ptr();
+
+        let root_inode_ptr = get_root_inode_ptr_mut(img_ptr, BLOCK_SIZE);
+        let root_inode = unsafe { read_unaligned(root_inode_ptr) };
+
+        root_inode.mkdir(&mut minix_img,  b"dir/nested/new_dir" , BLOCK_SIZE,);
+
+        // 親ディレクトリに作成した名前のディレクトリエントリが配置されているかどうかとinodeの値の検証
+        let offset = 49* BLOCK_SIZE;
+
+        let entries_count =
+            BLOCK_SIZE / core::mem::size_of::<minix3_dir_entry>();
+            let mut assertion = false;
+        for i in 0..entries_count {
+            let dir_entry = unsafe {
+                *(minix_img
+                    .as_ptr()
+                    .add(offset + i * 64)
+                    as *const minix3_dir_entry)
+            };
+
+            let len = dir_entry.name.iter().position(|&c| c == 0).unwrap_or(60);
+            let entry_name = &dir_entry.name[..len];
+            if entry_name == b"new_dir" {
                 assertion = true;
                 break;
             }
@@ -696,9 +734,6 @@ mod test {
 
     #[test_case]
     fn file_write_test() {
-        // すでにイメージファイルにあるものに書き込み、
-        // 想定通りに書き込めているかを見る
-
         let mut minix_img = include_bytes!("minix3.img").to_vec();
         let img_ptr = minix_img.as_mut_ptr();
 

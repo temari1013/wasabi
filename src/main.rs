@@ -107,12 +107,10 @@ fn efi_main(image_handle: EfiHandle, efi_system_table: &EfiSystemTable) {
         info!("read_file_name3");
         fs.create_file(img, BLOCK_SIZE, b"/newdir/newfile.txt");
         fs.show_directry_tree(img, BLOCK_SIZE);
-        info!("read_file_nam4");
-        let text = b"hello";
-        fs.write(img, b"/newdir/newfile.txt", BLOCK_SIZE, text);
+        info!("read_file_name4");
 
         fs.show_directry_tree(img, BLOCK_SIZE);
-        let tmp = fs.lookup_iter(b"/dir", img, BLOCK_SIZE);
+        let tmp = fs.lookup_iter(b"/dir/nested", img, BLOCK_SIZE);
         info!("{}", tmp);
         let tmp1 = fs.get_inode(tmp, BLOCK_SIZE, img);
         let hoge = unsafe { *(tmp1 as *const minix3_inode) };
