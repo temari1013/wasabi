@@ -674,6 +674,7 @@ mod test {
     fn file_write_test() {
         // すでにイメージファイルにあるものに書き込み、
         // 想定通りに書き込めているかを見る
+
         let mut minix_img = include_bytes!("minix3.img").to_vec();
         let img_ptr = minix_img.as_mut_ptr();
 
@@ -684,8 +685,14 @@ mod test {
             &mut minix_img,
             b"/dir/nested/syouyu.txt",
             BLOCK_SIZE,
-            b"test",
+            b"syouyu",
         );
+
+        // Verify
+        let offset = 52 * BLOCK_SIZE;
+        let written_data = &minix_img[offset..offset + 6];
+
+        assert_eq!(written_data, b"syouyu")
     }
 
     #[test_case]
