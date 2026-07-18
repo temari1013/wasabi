@@ -607,9 +607,23 @@ impl minix3_inode {
         info!("/");
         self.print_tree(minix_img, block_size, 1, 1);
     }
+
+    // 末端ファイルもしくはディレクトリの消去
+    pub fn delete(
+    &self,
+        minix_img: &mut [u8],
+        file_path: &[u8],
+        block_size: usize,
+) 
+{
+    // パスを親ディレクトリと本人に分割
+    // 親のサイズを下げる
+    // 
+
 }
 
-pub fn delete() {}
+}
+
 
 #[cfg(test)]
 mod test {
