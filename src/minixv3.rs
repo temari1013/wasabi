@@ -609,7 +609,7 @@ impl minix3_inode {
     }
 
     // 末端ファイルもしくはディレクトリの消去
-    pub fn delete(
+    pub fn delete_dir_entry(
     &self,
         minix_img: &mut [u8],
         file_path: &[u8],
@@ -617,9 +617,10 @@ impl minix3_inode {
 ) 
 {
     // パスを親ディレクトリと本人に分割
-    // 親のサイズを下げる
-    // 
-
+    let (parent_dir, filename) = split_path_and_filename(file_path);
+        // zone[0]を0埋めする
+    // 親のサイズを下げ、親のdir_entryを消去する
+    
 }
 
 }
