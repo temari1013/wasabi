@@ -79,9 +79,10 @@ fn efi_main(image_handle: EfiHandle, efi_system_table: &EfiSystemTable) {
     let abp_uart_task = async {
         // https://caro.su/msx/ocm_de1/16550.pdf
         sleep(Duration::from_millis(1000)).await;
-        let base_addr = 0xfe032000_usize; // chromebook boten/bookem
-                                          // let reg_rx_data = base_addr as *mut u8;
-                                          // let reg_line_status = (base_addr + 0b101) as *mut u8;
+        let base_addr = 0xfe032000_usize;
+        // chromebook boten/bookem
+        // let reg_rx_data = base_addr as *mut u8;
+        // let reg_line_status = (base_addr + 0b101) as *mut u8;
         unsafe {
             write_volatile((base_addr + 1) as *mut u8, 0x00);
             write_volatile((base_addr + 3) as *mut u8, 0x80);
@@ -101,14 +102,17 @@ fn efi_main(image_handle: EfiHandle, efi_system_table: &EfiSystemTable) {
         let tmp = fs.read(img, b"dir/test.txt", BLOCK_SIZE);
         let tmp2 = core::str::from_utf8(&tmp).unwrap_or("<invalid utf8>");
         info!("{}", tmp2);
-        info!("read_file_name2");
         fs.mkdir(img, b"/newdir", BLOCK_SIZE);
         fs.show_directry_tree(img, BLOCK_SIZE);
-        info!("read_file_name3");
         fs.create_file(img, BLOCK_SIZE, b"/newdir/newfile.txt");
         fs.show_directry_tree(img, BLOCK_SIZE);
         info!("read_file_name4");
-
+        fs.mkdir(img, b"/newdir2", BLOCK_SIZE);
+        info!("read_file_name5");
+         fs.show_directry_tree(img, BLOCK_SIZE);
+        fs.delete_dir_entry(img, b"/newdir2" , BLOCK_SIZE);
+        info!("read_file_name6");
+         fs.show_directry_tree(img, BLOCK_SIZE);
         let tmp2 = fs.read(img, b"dir/test.txt", BLOCK_SIZE);
         info!("{:#?}", tmp2);
         loop {}

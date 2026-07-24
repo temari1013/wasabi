@@ -610,21 +610,84 @@ impl minix3_inode {
 
     // 末端ファイルもしくはディレクトリの消去
     pub fn delete_dir_entry(
-    &self,
+        &self,
         minix_img: &mut [u8],
         file_path: &[u8],
         block_size: usize,
-) 
-{
-    // パスを親ディレクトリと本人に分割
-    let (parent_dir, filename) = split_path_and_filename(file_path);
-        // zone[0]を0埋めする
-    // 親のサイズを下げ、親のdir_entryを消去する
-    
-}
+    ) {
+        // パスを親ディレクトリと本人に分割
+        let (parent_dir, filename) = split_path_and_filename(file_path);
+        // 本人のzone[0]を0埋めし、inodeのサイズを下げる
+        let inode_num = self.lookup_iter(filename, minix_img, block_size);
+        let inode_ptr = self.get_inode(inode_num, block_size, minix_img);
+        if inode_ptr.is_null() {
+            return;
+        }
 
-}
+        let zone_block_num = unsafe { (*inode_ptr).i_zone[0] as usize };
+        if zone_block_num != 0 {
+            let zone_offset = zone_block_num * block_size;
+            if zone_offset + block_size <= minix_img.len() {
+                minix_img[zone_offset..zone_offset + block_size].fill(0);
+            }
+            unsafe {
+                (*inode_ptr).i_zone[0] = 0;
+                (*inode_ptr).i_size = 0;
+            }
+        }
+        // imapの更新
+        let imap_start_block = 2;
+        let bit_index = inode_num as usize - 1;
+        let byte_idx = (imap_start_block * block_size) + (bit_index / 8);
+        let bit_idx = bit_index % 8;
+        minix_img[byte_idx] &= !(1u8 << bit_idx);
+        
+        // 親の
+        let parent_inode_num = if parent_dir == b"/" {
+            1
+        } else {
+            self.lookup_iter(parent_dir, minix_img, block_size)
+        };
+        if parent_inode_num == 0 {
+            return;
+        }
 
+        let parent_inode_ptr =
+            self.get_inode(parent_inode_num, block_size, minix_img);
+        if parent_inode_ptr.is_null() {
+            return;
+        }
+        let parent_zone_block_num =
+            unsafe { (*parent_inode_ptr).i_zone[0] as usize };
+        if parent_zone_block_num == 0 {
+            return;
+        }
+
+        let entries_count =
+            block_size / core::mem::size_of::<minix3_dir_entry>();
+        let entries = unsafe {
+            core::slice::from_raw_parts_mut(
+                minix_img
+                    .as_mut_ptr()
+                    .add(parent_zone_block_num * block_size)
+                    as *mut minix3_dir_entry,
+                entries_count,
+            )
+        };
+
+        for entry in entries.iter_mut() {
+            if entry.inode == inode_num {
+                let len = entry.name.iter().position(|&c| c == 0).unwrap_or(60);
+                let entry_name = &entry.name[..len];
+                if entry_name == filename {
+                    entry.inode = 0;
+                    entry.name.fill(0);
+                    break;
+                }
+            }
+        }
+    }
+}
 
 #[cfg(test)]
 mod test {
@@ -799,7 +862,7 @@ mod test {
         assert_eq!(target_inode_num, 2);
     }
 
-     #[test_case]
+    #[test_case]
     fn lookup_inode_iter_test() {
         //  lookup_inodeにroodeのポインタと探すディレクトリ、
         // その他引数を渡すと想定通りの番号が帰ってくることを期待する。
@@ -811,7 +874,7 @@ mod test {
         let target_inode_num = root_inode.lookup_iter(
             b"dir/nested",
             unsafe { &mut *(img_ptr as *mut [u8; 2097152]) },
-             BLOCK_SIZE
+            BLOCK_SIZE,
         );
         assert_eq!(target_inode_num, 3);
     }
