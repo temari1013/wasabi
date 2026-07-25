@@ -237,7 +237,9 @@ fn main() -> Result<()> {
 
     init_minixfs(&mut mem);
     fs.create_file(&mut mem,BLOCK_SIZE,  b"/test.txt");
+    fs.write(&mut mem, b"/test.txt", BLOCK_SIZE, b"hello from new initialized filesystem");
     fs.show_directry_tree(&mut mem, BLOCK_SIZE);
+    fs.read(&mut mem,b"/test.txt",BLOCK_SIZE);
 
     run_tasks()?;
     Ok(())

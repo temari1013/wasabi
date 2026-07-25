@@ -1,3 +1,5 @@
+use core::fmt::write;
+
 use crate::error;
 use crate::fs::minix;
 use crate::info;
@@ -267,6 +269,8 @@ impl minix3_inode {
             let target_ptr = minix_img.as_mut_ptr().add(inode_offset) as *mut minix3_inode;
             core::ptr::write(target_ptr, node);
         }
+        info !("inode num is...");
+        info!("{}" , inode_num);
         inode_num as u32
     }
     fn link_inode(
@@ -318,16 +322,19 @@ impl minix3_inode {
         let mut inode_num = 0;
         info!("Current function: {}", function_name!());
         let (dir, filename) = split_path_and_filename(path);
+        info!("確認用");
         if dir == b"/" {
-            inode_num = self.alloc_inode(minix_img, block_size, 0x0000)
+            inode_num = self.alloc_inode(minix_img, block_size, 0x0000);
+            let _ = self.link_inode(minix_img, 1, inode_num, block_size, filename);
         } else {
             let parent_inode_num = self.lookup_iter(dir, minix_img, block_size);
             if parent_inode_num == 0 {
                 error!("Parent directory not found");
                 return 0;
             }
-            /
+            
             inode_num = self.alloc_inode(minix_img, block_size, 0x0000);
+            info!("{}" ,inode_num);
             let res = self.link_inode(minix_img, parent_inode_num, inode_num, block_size, filename);
         }
 
@@ -670,7 +677,6 @@ pub fn init_minixfs(mem: &mut [u8]) {
     let imap_blocks = (s_ninodes + bits_per_block - 1) / bits_per_block;
     let zmap_blocks = (total_blocks + bits_per_block as usize - 1) / bits_per_block as usize;
 
-    
     let firstdatazone = 2 + imap_blocks as u32 + zmap_blocks as u32 + inode_table_blocks;
 
     super_block.s_ninodes = s_ninodes;
@@ -693,7 +699,7 @@ pub fn init_minixfs(mem: &mut [u8]) {
     root_inode.i_size = 128;
     root_inode.i_zone[0] = firstdatazone;
     unsafe {
-        let mem_ptr = mem.as_mut_ptr().add(end as usize).add(64) as *mut minix3_inode;
+        let mem_ptr = mem.as_mut_ptr().add(end as usize)as *mut minix3_inode;
         core::ptr::write_unaligned(mem_ptr, root_inode);
     }
 
