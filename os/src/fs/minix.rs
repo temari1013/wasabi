@@ -1,4 +1,5 @@
 use crate::error;
+use crate::fs::minix;
 use crate::info;
 
 macro_rules! function_name {
@@ -71,6 +72,18 @@ impl minix3_super_block {
 pub struct minix3_dir_entry {
     pub inode: u32,
     pub name: [c_char; 60],
+}
+impl minix3_dir_entry {
+    pub fn new(inode: u32, name: &[u8]) -> minix3_dir_entry {
+        let mut entry_name = [0 as u8; 60];
+        let len = core::cmp::min(name.len(), 60);
+        entry_name[..len].copy_from_slice(&name[..len]);
+
+        minix3_dir_entry {
+            inode,
+            name: entry_name,
+        }
+    }
 }
 
 #[repr(C, packed)]
@@ -588,7 +601,6 @@ impl minix3_inode {
         minix_img[byte_idx] &= !(1u8 << bit_idx);
 
         // 親のエントリから自身を消す
-
         let parent_inode_num = if parent_dir == b"/" {
             1
         } else {
@@ -634,26 +646,72 @@ impl minix3_inode {
 }
 
 pub fn init_minixfs(mem: &mut [u8]) {
-    let block_size   = 1024 as u16;
+    // 全体てkいなtodo : superblock内部の値の更新
+    let block_size = 1024 as u16;
     info!("Current function: {}", function_name!());
 
-    let mem_ptr = mem.as_mut_ptr() as *mut minix3_super_block;
     let fs_size: usize = mem.len();
     let super_block = minix3_super_block::new(block_size);
 
     unsafe {
+        let mem_ptr = mem.as_mut_ptr().add(1024) as *mut minix3_super_block;
         core::ptr::write_unaligned(mem_ptr, super_block);
     }
 
     // zoneに何ブロック使えるかを考える
-   let total_blocks = fs_size / block_size as usize;
-   // inode比率を決め、
-   let inode_per_bytes = 0;
-    // zonebitmapを0埋めする（ゾーンブロックは割り当て時に初期化があるので放置でok)
+    let total_blocks = fs_size / block_size as usize;
+    // inode比率は8個に一個とする
+    let s_ninodes = (total_blocks / 8) as u32;
 
-    // 最初のinodeとdir_entry(ルート)を配置
-    let inode = 
-    
+    let inodes_per_block = block_size as u32 / 64;
+    // 切り上げとして処理するための足し算が入る
+    let inode_table_blocks = (s_ninodes + inodes_per_block - 1) / inodes_per_block;
+    let bits_per_block = block_size as u32 * 8;
+    let imap_blocks = (s_ninodes + bits_per_block - 1) / bits_per_block;
+    let zmap_blocks = (total_blocks + bits_per_block as usize - 1) / bits_per_block as usize;
+
+    let firstdatazone = 2 + imap_blocks as u32 + zmap_blocks as u32 + inode_table_blocks;
+    // iとzのbitmapを0埋めする（ゾーンブロックは割り当て時に初期化があるので放置でok)
+    let begin = 2 * block_size as u32;
+    let end = (2 as u32 + imap_blocks as u32 + zmap_blocks as u32) * block_size as u32;
+    mem[begin as usize..end as usize].fill(0);
+    // 両方とも0と1は予約領域として0に変更する
+
+    let mut root_inode = minix3_inode::new(0x4000);
+    root_inode.i_size = 128;
+    root_inode.i_zone[0] = firstdatazone;
+    unsafe {
+        let mem_ptr = mem.as_mut_ptr().add(end as usize).add(64) as *mut minix3_inode;
+        core::ptr::write_unaligned(mem_ptr, root_inode);
+    }
+
+    // すでに使われているmapの領域は1に戻す
+    mem[2 * block_size as usize] = 0x03;
+    let zmap_offset = (2 + imap_blocks) as usize * block_size as usize;
+    let reserved_zones = firstdatazone + 1;
+    for i in 0..reserved_zones {
+        let byte_idx = (i / 8) as usize;
+        let bit_idx = i % 8;
+        mem[zmap_offset + byte_idx] |= 1 << bit_idx;
+    }
+
+    let total_bits_in_zmap = zmap_blocks as u32 * block_size as u32 * 8;
+    for i in total_blocks as u32..total_bits_in_zmap {
+        let byte_idx = (i / 8) as usize;
+        let bit_idx = i % 8;
+        mem[zmap_offset + byte_idx] |= 1 << bit_idx;
+    }
+
+    // . と .. の配置
+    let entry_dot = minix3_dir_entry::new(1, b".");
+    let entry_dotdot = minix3_dir_entry::new(1, b"..");
+    let data_offset = firstdatazone as usize * block_size as usize;
+
+    unsafe {
+        let mem_ptr = mem.as_mut_ptr().add(data_offset) as *mut minix3_dir_entry;
+        core::ptr::write_unaligned(mem_ptr, entry_dot);
+        core::ptr::write_unaligned(mem_ptr.add(1), entry_dotdot);
+    }
 }
 
 #[cfg(test)]
@@ -851,7 +909,7 @@ mod test {
         // inodeが消えたか?
         // inodeのゾーンマッピングが0に戻っているか?
         // zoneが消えたか?
-        // 親のサイズ更新: 親がサイズでイテレータを回す以上、
+        // 親のサイズ更新: 親がサイズでイテレータを回す以上、できない?
 
         let offset = 49 * BLOCK_SIZE;
         // 親のディレクトリを一つ一つ走査する
@@ -864,7 +922,7 @@ mod test {
             let len = dir_entry.name.iter().position(|&c| c == 0).unwrap_or(60);
             let entry_name = &dir_entry.name[..len];
 
-            if entry_name == b"new_dir" || dir_entry.inode != 0 {
+            if entry_name == b"new_dir" &&  dir_entry.inode != 0 {
                 entry_exists = true;
                 break;
             }
