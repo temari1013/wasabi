@@ -641,8 +641,9 @@ impl minix3_inode {
         let byte_idx = (imap_start_block * block_size) + (bit_index / 8);
         let bit_idx = bit_index % 8;
         minix_img[byte_idx] &= !(1u8 << bit_idx);
-        
-        // 親の
+         
+      // 親のエントリから自身を消す
+
         let parent_inode_num = if parent_dir == b"/" {
             1
         } else {
@@ -687,6 +688,7 @@ impl minix3_inode {
             }
         }
     }
+    // alloc_inodeとalloc_zoneが割り当て時に初期化するので、データ部自体の0埋めは必要ない
 }
 
 #[cfg(test)]
@@ -877,5 +879,76 @@ mod test {
             BLOCK_SIZE,
         );
         assert_eq!(target_inode_num, 3);
+    }
+
+    #[test_case]
+    fn delete_test() {
+         let mut minix_img = include_bytes!("minix3.img").to_vec();
+        let img_ptr = minix_img.as_mut_ptr();
+
+        let root_inode_ptr = get_root_inode_ptr_mut(img_ptr, BLOCK_SIZE);
+        let root_inode = unsafe { read_unaligned(root_inode_ptr) };
+
+        // いいimgがないので一旦テスト済みのメソッドを使用して作成したものを削除して検証することにする
+        let target_inode_num = root_inode.mkdir(&mut minix_img, b"dir/nested/new_dir", BLOCK_SIZE);
+        assert!(target_inode_num != 0);
+       
+
+        // 本当はここでget_inodeを使ってはいけない
+        let target_inode_ptr = root_inode.get_inode(target_inode_num, BLOCK_SIZE, &mut minix_img);
+         let zone_num = unsafe { (*target_inode_ptr).i_zone[0] };
+         root_inode.delete_dir_entry(
+            &mut minix_img,
+            b"/dir/nested/new_dir",
+            BLOCK_SIZE,
+        );
+
+        // Verify
+        // 検証すべきこと: dir_entryが消えたか?
+        // inodeが消えたか?
+        // inodeのゾーンマッピングが0に戻っているか?
+        // zoneが消えたか?
+        // 親のサイズ更新: 親がサイズでイテレータを回す以上、
+
+        let offset = 49 * BLOCK_SIZE;
+        // 親のディレクトリを一つ一つ走査する
+        let entries_count = BLOCK_SIZE / core::mem::size_of::<minix3_dir_entry>();
+        let mut entry_exists = false;
+        
+        for i in 0..entries_count {
+            let dir_entry = unsafe {
+                *(minix_img.as_ptr().add(offset + i * 64) as *const minix3_dir_entry)
+            };
+            let len = dir_entry.name.iter().position(|&c| c == 0).unwrap_or(60);
+            let entry_name = &dir_entry.name[..len];
+            
+            if entry_name == b"new_dir" || dir_entry.inode != 0 {
+                entry_exists = true;
+                break;
+            }
+        }
+        assert_eq!(entry_exists, false);
+
+        // imapのビットを検証
+        let imap_start_block = 2;
+        let bit_index = target_inode_num as usize - 1;
+        let byte_idx = (imap_start_block * BLOCK_SIZE) + (bit_index / 8);
+        let bit_idx = bit_index % 8;
+        assert_eq!((minix_img[byte_idx] & (1u8 << bit_idx)), 0);
+
+        // zone[0]に記録されているzoneのzone_bitmapが初期化されたかどうかを見る
+        let super_block_ptr = unsafe {
+            minix_img.as_ptr().add(BLOCK_SIZE) as *const minix3_super_block
+        };
+        let super_block = unsafe { core::ptr::read_unaligned(super_block_ptr) };
+        
+        let zmap_start_block = 2 + super_block.s_imap_blocks as usize;
+        let j = zone_num as usize + 1 - super_block.s_firstdatazone as usize;
+        let zmap_byte_idx = (zmap_start_block * BLOCK_SIZE) + (j / 8);
+        let zmap_bit_idx = j % 8;
+        
+        assert_eq!((minix_img[zmap_byte_idx] & (1u8 << zmap_bit_idx)), 0);
+
+
     }
 }
