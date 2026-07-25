@@ -230,6 +230,7 @@ impl minix3_inode {
     }
 
     fn alloc_inode(&self, minix_img: &mut [u8], block_size: usize, mode: u16) -> u32 {
+         info!("Current function: {}", function_name!());
         let super_block =
             unsafe { *(minix_img.as_ptr().add(block_size) as *const minix3_super_block) };
 
@@ -325,6 +326,7 @@ impl minix3_inode {
                 error!("Parent directory not found");
                 return 0;
             }
+            /
             inode_num = self.alloc_inode(minix_img, block_size, 0x0000);
             let res = self.link_inode(minix_img, parent_inode_num, inode_num, block_size, filename);
         }
@@ -651,12 +653,9 @@ pub fn init_minixfs(mem: &mut [u8]) {
     info!("Current function: {}", function_name!());
 
     let fs_size: usize = mem.len();
-    let super_block = minix3_super_block::new(block_size);
+    let  mut super_block = minix3_super_block::new(block_size);
 
-    unsafe {
-        let mem_ptr = mem.as_mut_ptr().add(1024) as *mut minix3_super_block;
-        core::ptr::write_unaligned(mem_ptr, super_block);
-    }
+   
 
     // zoneに何ブロック使えるかを考える
     let total_blocks = fs_size / block_size as usize;
@@ -665,18 +664,31 @@ pub fn init_minixfs(mem: &mut [u8]) {
 
     let inodes_per_block = block_size as u32 / 64;
     // 切り上げとして処理するための足し算が入る
+
     let inode_table_blocks = (s_ninodes + inodes_per_block - 1) / inodes_per_block;
     let bits_per_block = block_size as u32 * 8;
     let imap_blocks = (s_ninodes + bits_per_block - 1) / bits_per_block;
     let zmap_blocks = (total_blocks + bits_per_block as usize - 1) / bits_per_block as usize;
 
+    
     let firstdatazone = 2 + imap_blocks as u32 + zmap_blocks as u32 + inode_table_blocks;
+
+    super_block.s_ninodes = s_ninodes;
+    super_block.s_imap_blocks = imap_blocks as u16;
+    super_block.s_zmap_blocks = zmap_blocks as u16;
+    super_block.s_firstdatazone = firstdatazone as u16;
+    super_block.s_zones = total_blocks as u32;
+
+     unsafe {
+        let mem_ptr = mem.as_mut_ptr().add(1024) as *mut minix3_super_block;
+        core::ptr::write_unaligned(mem_ptr, super_block);
+    }
+   
     // iとzのbitmapを0埋めする（ゾーンブロックは割り当て時に初期化があるので放置でok)
     let begin = 2 * block_size as u32;
     let end = (2 as u32 + imap_blocks as u32 + zmap_blocks as u32) * block_size as u32;
     mem[begin as usize..end as usize].fill(0);
     // 両方とも0と1は予約領域として0に変更する
-
     let mut root_inode = minix3_inode::new(0x4000);
     root_inode.i_size = 128;
     root_inode.i_zone[0] = firstdatazone;
@@ -922,7 +934,7 @@ mod test {
             let len = dir_entry.name.iter().position(|&c| c == 0).unwrap_or(60);
             let entry_name = &dir_entry.name[..len];
 
-            if entry_name == b"new_dir" &&  dir_entry.inode != 0 {
+            if entry_name == b"new_dir" && dir_entry.inode != 0 {
                 entry_exists = true;
                 break;
             }

@@ -11,6 +11,7 @@ extern crate alloc;
 use alloc::rc::Rc;
 use alloc::string::String;
 use alloc::vec::Vec;
+use alloc::vec;
 use core::pin::Pin;
 use core::str::FromStr;
 use noli::bitmap::bitmap_draw_line;
@@ -41,7 +42,6 @@ use os::x86_64;
 use os::x86_64::read_rsp;
 use os::x86_64::syscall::init_syscall;
 
-pub static mut MINIX3_IMG: [u8; 2097152] = *include_bytes!("fs/minix3.img");
 
 fn paint_wasabi_logo() {
     const SIZE: i64 = 256;
@@ -232,15 +232,12 @@ fn main() -> Result<()> {
 
     const BLOCK_SIZE: usize = 1024;
     let fs = minix3_inode::new(0);
-    let img = unsafe { &mut MINIX3_IMG };
-    fs.show_directry_tree(img, BLOCK_SIZE);
-    use alloc::vec;
+    let size = 512 * 1024 * 1024;
+    let mut mem = vec![0u8; size];
 
-let size = 512 * 1024 * 1024;
-let mut mem = vec![0u8; size];
-
-init_minixfs(&mut mem);
-  fs.show_directry_tree(& mut mem, BLOCK_SIZE);
+    init_minixfs(&mut mem);
+    fs.create_file(&mut mem,BLOCK_SIZE,  b"/test.txt");
+    fs.show_directry_tree(&mut mem, BLOCK_SIZE);
 
     run_tasks()?;
     Ok(())
