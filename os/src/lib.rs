@@ -62,6 +62,7 @@ mod volatile;
 mod vram;
 pub mod x86_64;
 pub mod xhci;
+pub mod fs;
 
 #[cfg(test)]
 #[no_mangle]

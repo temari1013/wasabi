@@ -39,6 +39,10 @@ use os::serial::SerialPort;
 use os::x86_64;
 use os::x86_64::read_rsp;
 use os::x86_64::syscall::init_syscall;
+use os::fs::minix::*;
+
+pub static mut MINIX3_IMG: [u8; 2097152] = *include_bytes!("fs/minix3.img");
+
 
 fn paint_wasabi_logo() {
     const SIZE: i64 = 256;
@@ -227,9 +231,10 @@ fn main() -> Result<()> {
     os::process::init();
     init_syscall();
 
-    // Note: This log message is used by the e2etest and dbgutil
-    // so please do not edit if you are unsure!
-    info!("Welcome to WasabiOS!");
+    const BLOCK_SIZE: usize = 1024;
+    let fs = minix3_inode::new(0);
+    let img = unsafe { &mut MINIX3_IMG };
+    fs.show_directry_tree(img, BLOCK_SIZE);
 
     run_tasks()?;
     Ok(())
