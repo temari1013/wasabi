@@ -37,6 +37,7 @@ pub mod efi;
 pub mod elf;
 pub mod error;
 pub mod executor;
+pub mod fs;
 pub mod hpet;
 pub mod init;
 pub mod input;
@@ -62,7 +63,6 @@ mod volatile;
 mod vram;
 pub mod x86_64;
 pub mod xhci;
-pub mod fs;
 
 #[cfg(test)]
 #[no_mangle]

@@ -28,6 +28,7 @@ use os::executor::run_global_poll_loop;
 use os::executor::spawn_global;
 use os::executor::yield_execution;
 use os::executor::TimeoutFuture;
+use os::fs::minix::*;
 use os::info;
 use os::init;
 use os::input::InputManager;
@@ -39,10 +40,8 @@ use os::serial::SerialPort;
 use os::x86_64;
 use os::x86_64::read_rsp;
 use os::x86_64::syscall::init_syscall;
-use os::fs::minix::*;
 
 pub static mut MINIX3_IMG: [u8; 2097152] = *include_bytes!("fs/minix3.img");
-
 
 fn paint_wasabi_logo() {
     const SIZE: i64 = 256;
