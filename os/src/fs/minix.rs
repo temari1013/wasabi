@@ -1,4 +1,3 @@
-
 extern crate alloc;
 use crate::error;
 use crate::fs::minix;
@@ -232,7 +231,7 @@ impl minix3_inode {
     }
 
     fn alloc_inode(&self, minix_img: &mut [u8], block_size: usize, mode: u16) -> u32 {
-         info!("Current function: {}", function_name!());
+        info!("Current function: {}", function_name!());
         let super_block =
             unsafe { *(minix_img.as_ptr().add(block_size) as *const minix3_super_block) };
 
@@ -269,8 +268,8 @@ impl minix3_inode {
             let target_ptr = minix_img.as_mut_ptr().add(inode_offset) as *mut minix3_inode;
             core::ptr::write(target_ptr, node);
         }
-        info !("inode num is...");
-        info!("{}" , inode_num);
+        info!("inode num is...");
+        info!("{}", inode_num);
         inode_num as u32
     }
     fn link_inode(
@@ -332,9 +331,9 @@ impl minix3_inode {
                 error!("Parent directory not found");
                 return 0;
             }
-            
+
             inode_num = self.alloc_inode(minix_img, block_size, 0x0000);
-            info!("{}" ,inode_num);
+            info!("{}", inode_num);
             let res = self.link_inode(minix_img, parent_inode_num, inode_num, block_size, filename);
         }
 
@@ -584,7 +583,7 @@ impl minix3_inode {
     pub fn delete_dir_entry(&self, minix_img: &mut [u8], file_path: &[u8], block_size: usize) {
         // パスを親ディレクトリと本人に分割
         let (parent_dir, filename) = split_path_and_filename(file_path);
-let inode_num = self.lookup_iter(file_path, minix_img, block_size);
+        let inode_num = self.lookup_iter(file_path, minix_img, block_size);
         let inode_ptr = self.get_inode(inode_num, block_size, minix_img);
         if inode_ptr.is_null() {
             return;
@@ -659,9 +658,7 @@ pub fn init_minixfs(mem: &mut [u8]) {
     info!("Current function: {}", function_name!());
 
     let fs_size: usize = mem.len();
-    let  mut super_block = minix3_super_block::new(block_size);
-
-   
+    let mut super_block = minix3_super_block::new(block_size);
 
     // zoneに何ブロック使えるかを考える
     let total_blocks = fs_size / block_size as usize;
@@ -684,11 +681,11 @@ pub fn init_minixfs(mem: &mut [u8]) {
     super_block.s_firstdatazone = firstdatazone as u16;
     super_block.s_zones = total_blocks as u32;
 
-     unsafe {
+    unsafe {
         let mem_ptr = mem.as_mut_ptr().add(1024) as *mut minix3_super_block;
         core::ptr::write_unaligned(mem_ptr, super_block);
     }
-   
+
     // iとzのbitmapを0埋めする（ゾーンブロックは割り当て時に初期化があるので放置でok)
     let begin = 2 * block_size as u32;
     let end = (2 as u32 + imap_blocks as u32 + zmap_blocks as u32) * block_size as u32;
@@ -698,7 +695,7 @@ pub fn init_minixfs(mem: &mut [u8]) {
     root_inode.i_size = 128;
     root_inode.i_zone[0] = firstdatazone;
     unsafe {
-        let mem_ptr = mem.as_mut_ptr().add(end as usize)as *mut minix3_inode;
+        let mem_ptr = mem.as_mut_ptr().add(end as usize) as *mut minix3_inode;
         core::ptr::write_unaligned(mem_ptr, root_inode);
     }
 
@@ -734,9 +731,9 @@ pub fn init_minixfs(mem: &mut [u8]) {
 #[cfg(test)]
 mod test {
     use super::*;
-    use core::assert_eq;
-use core::mem::size_of;
+    use core::mem::size_of;
     use core::ptr::read_unaligned;
+    use core::{assert_eq, unimplemented};
 
     pub static MINIX3_IMG: [u8; 2097152] = *include_bytes!("minix3.img");
     pub static BLOCK_SIZE: usize = 1024;
@@ -905,7 +902,6 @@ use core::mem::size_of;
         assert_eq!(target_inode_num, 3);
     }
 
-
     fn delete_test() {
         let mut minix_img = include_bytes!("minix3.img").to_vec();
         let img_ptr = minix_img.as_mut_ptr();
@@ -967,24 +963,35 @@ use core::mem::size_of;
         assert_eq!((minix_img[zmap_byte_idx] & (1u8 << zmap_bit_idx)), 0);
     }
 
-        #[test_case]
-    
-    fn integration_test() {
-          const BLOCK_SIZE: usize = 1024;
-    let fs = minix3_inode::new(0);
-    let size = 512 * 1024 * 1024;
-    let mut mem = alloc::vec![0u8; size];
+    /*
+             #[test_case]
+         fn minix_init_test() {
+    unimplemented!("todo minix_init_test");
+         }
+          */
 
-    init_minixfs(&mut mem);
-    
-    fs.mkdir(&mut mem, b"/nested_dir" , BLOCK_SIZE);
-    fs.mkdir(&mut mem, b"/nested_dir/nested_dir2" , BLOCK_SIZE);
-    fs.delete_dir_entry(&mut mem,b"/nested_dir/nested_dir2", BLOCK_SIZE);
-    fs.mkdir(&mut mem, b"/nested_dir/nested_dir2" , BLOCK_SIZE);
-    fs.create_file(&mut mem,BLOCK_SIZE,  b"/nested_dir/nested_dir2/test.txt");
-    fs.write(&mut mem, b"/nested_dir/nested_dir2/test.txt", BLOCK_SIZE, b"filesystem integration test");
+    #[test_case]
+    fn minix_integration_test() {
+        const BLOCK_SIZE: usize = 1024;
+        let fs = minix3_inode::new(0);
+        let size = 512 * 1024 * 1024;
+        let mut mem = alloc::vec![0u8; size];
 
-    let result = fs.read(&mut mem, b"/nested_dir/nested_dir2/test.txt", BLOCK_SIZE);
-    assert_eq!(result,b"filesystem integration test" );
+        init_minixfs(&mut mem);
+
+        fs.mkdir(&mut mem, b"/nested_dir", BLOCK_SIZE);
+        fs.mkdir(&mut mem, b"/nested_dir/nested_dir2", BLOCK_SIZE);
+        fs.delete_dir_entry(&mut mem, b"/nested_dir/nested_dir2", BLOCK_SIZE);
+        fs.mkdir(&mut mem, b"/nested_dir/nested_dir2", BLOCK_SIZE);
+        fs.create_file(&mut mem, BLOCK_SIZE, b"/nested_dir/nested_dir2/test.txt");
+        fs.write(
+            &mut mem,
+            b"/nested_dir/nested_dir2/test.txt",
+            BLOCK_SIZE,
+            b"filesystem integration test",
+        );
+
+        let result = fs.read(&mut mem, b"/nested_dir/nested_dir2/test.txt", BLOCK_SIZE);
+        assert_eq!(result, b"filesystem integration test");
     }
 }

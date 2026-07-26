@@ -10,8 +10,8 @@ extern crate alloc;
 
 use alloc::rc::Rc;
 use alloc::string::String;
-use alloc::vec::Vec;
 use alloc::vec;
+use alloc::vec::Vec;
 use core::pin::Pin;
 use core::str::FromStr;
 use noli::bitmap::bitmap_draw_line;
@@ -41,7 +41,6 @@ use os::serial::SerialPort;
 use os::x86_64;
 use os::x86_64::read_rsp;
 use os::x86_64::syscall::init_syscall;
-
 
 fn paint_wasabi_logo() {
     const SIZE: i64 = 256;
@@ -236,10 +235,15 @@ fn main() -> Result<()> {
     let mut mem = vec![0u8; size];
 
     init_minixfs(&mut mem);
-    fs.create_file(&mut mem,BLOCK_SIZE,  b"/test.txt");
-    fs.write(&mut mem, b"/test.txt", BLOCK_SIZE, b"hello from new initialized filesystem");
+    fs.create_file(&mut mem, BLOCK_SIZE, b"/test.txt");
+    fs.write(
+        &mut mem,
+        b"/test.txt",
+        BLOCK_SIZE,
+        b"hello from new initialized filesystem",
+    );
     fs.show_directry_tree(&mut mem, BLOCK_SIZE);
-    fs.read(&mut mem,b"/test.txt",BLOCK_SIZE);
+    fs.read(&mut mem, b"/test.txt", BLOCK_SIZE);
 
     run_tasks()?;
     Ok(())
