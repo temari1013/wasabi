@@ -15,6 +15,7 @@ macro_rules! function_name {
     }};
 }
 pub type c_char = u8;
+pub const MINIX_MAX_FILENAME: usize = 60;
 
 fn split_path_and_filename(file_path: &[u8]) -> (&[u8], &[u8]) {
     info!("Current function: {}", function_name!());
@@ -72,7 +73,7 @@ impl minix3_super_block {
 #[derive(Clone, Copy)]
 pub struct minix3_dir_entry {
     pub inode: u32,
-    pub name: [c_char; 60],
+    pub name: [c_char; MINIX_MAX_FILENAME],
 }
 impl minix3_dir_entry {
     pub fn new(inode: u32, name: &[u8]) -> minix3_dir_entry {
@@ -111,8 +112,7 @@ impl minix3_inode {
             return core::ptr::null_mut();
         }
 
-        let super_block =
-            unsafe { *(minix_img.as_ptr().add(block_size) as *const minix3_super_block) };
+        let super_block = get_super_block(minix_img, block_size);
         let inode_table_block =
             2 + super_block.s_imap_blocks as usize + super_block.s_zmap_blocks as usize;
         let base_offset = inode_table_block * block_size;
@@ -154,7 +154,6 @@ impl minix3_inode {
             return 0;
         }
         let parent_zone_block_num = unsafe { (*parent_inode).i_zone[0] as usize };
-
         let entries_count = block_size / core::mem::size_of::<minix3_dir_entry>();
 
         for i in 0..entries_count {
@@ -209,7 +208,6 @@ impl minix3_inode {
             error!("invalid i_mode");
             return 0;
         }
-
         let parent_zone_block_num = unsafe { (*parent_inode).i_zone[0] as usize };
 
         for i in 2..32 {
@@ -232,8 +230,7 @@ impl minix3_inode {
 
     fn alloc_inode(&self, minix_img: &mut [u8], block_size: usize, mode: u16) -> u32 {
         info!("Current function: {}", function_name!());
-        let super_block =
-            unsafe { *(minix_img.as_ptr().add(block_size) as *const minix3_super_block) };
+              let super_block = get_super_block(minix_img, block_size);
 
         let imap_start_block = 2;
         let zmap_start_block = imap_start_block + super_block.s_imap_blocks as usize;
@@ -347,8 +344,7 @@ impl minix3_inode {
             return 0;
         }
 
-        let super_block =
-            unsafe { *(minix_img.as_ptr().add(block_size) as *const minix3_super_block) };
+             let super_block = get_super_block(minix_img, block_size);
 
         let block_offset = 2 + super_block.s_imap_blocks as usize;
         let max_bits = (super_block.s_zmap_blocks as usize) * block_size * 8;
@@ -728,10 +724,15 @@ pub fn init_minixfs(mem: &mut [u8]) {
     }
 }
 
+pub fn get_super_block(minix_img: &mut [u8], block_size: usize) -> minix3_super_block {
+   // SAFETY : The second block of the Minix image is the superblock.
+    let super_block = unsafe { *(minix_img.as_ptr().add(block_size) as *const minix3_super_block) };
+    super_block
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
-    use core::mem::size_of;
     use core::ptr::read_unaligned;
     use core::{assert_eq, unimplemented};
 
