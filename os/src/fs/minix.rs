@@ -679,7 +679,6 @@ pub fn get_super_block(minix_img: &mut [u8], block_size: usize) -> minix3_super_
     super_block
 }
 
-/* 
 #[cfg(test)]
 mod test {
     use super::*;
@@ -750,21 +749,22 @@ mod test {
     }
 
     #[test_case]
-    fn read_test() {
-        let img_ptr = MINIX3_IMG.as_ptr();
+   fn read_test() {
+    let img_ptr = MINIX3_IMG.as_ptr();
 
-        let root_inode_ptr = get_root_inode_ptr(img_ptr, BLOCK_SIZE);
-        let root_inode = unsafe { read_unaligned(root_inode_ptr) };
+    let root_inode_ptr = get_root_inode_ptr(img_ptr, BLOCK_SIZE);
+    let root_inode = unsafe { core::ptr::read_unaligned(root_inode_ptr) };
 
-        let data = root_inode.read(
-            unsafe { &mut *(img_ptr as *mut [u8; 2097152]) },
-            b"dir/test.txt",
-            BLOCK_SIZE,
-        );
-        let expected = b"hello";
-        assert!(data.len() >= expected.len());
-        assert_eq!(&data[..expected.len()], expected);
-    }
+    let data = root_inode.read(
+        unsafe { &mut *(img_ptr as *mut [u8; 2097152]) },
+        b"dir/test.txt",
+        BLOCK_SIZE,
+    ).unwrap();
+
+    let expected = b"hello";
+    assert!(data.len() >= expected.len());
+    assert_eq!(&data[..expected.len()], expected);
+}
 
     #[test_case]
     fn mkdir_test() {
@@ -836,23 +836,9 @@ mod test {
         assert_eq!(target_inode_num, 2);
     }
 
-    #[test_case]
-    fn lookup_inode_iter_test() {
-        //  lookup_inodeにroodeのポインタと探すディレクトリ、
-        // その他引数を渡すと想定通りの番号が帰ってくることを期待する。
-        let img_ptr = MINIX3_IMG.as_ptr();
 
-        let root_inode_ptr = get_root_inode_ptr(img_ptr, BLOCK_SIZE);
-        let root_inode = unsafe { read_unaligned(root_inode_ptr) };
-
-        let target_inode_num = root_inode.lookup_iter(
-            b"dir/nested",
-            unsafe { &mut *(img_ptr as *mut [u8; 2097152]) },
-            BLOCK_SIZE,
-        );
-        assert_eq!(target_inode_num, 3);
-    }
-
+    // 良くないテストなので一旦コメントアウト
+    /* 
     fn delete_test() {
         let mut minix_img = include_bytes!("minix3.img").to_vec();
         let img_ptr = minix_img.as_mut_ptr();
@@ -913,6 +899,7 @@ mod test {
 
         assert_eq!((minix_img[zmap_byte_idx] & (1u8 << zmap_bit_idx)), 0);
     }
+    */
 
     /*
              #[test_case]
@@ -942,9 +929,7 @@ mod test {
             b"filesystem integration test",
         );
 
-        let result = fs.read(&mut mem, b"/nested_dir/nested_dir2/test.txt", BLOCK_SIZE);
+        let result = fs.read(&mut mem, b"/nested_dir/nested_dir2/test.txt", BLOCK_SIZE).unwrap();
         assert_eq!(result, b"filesystem integration test");
     }
 }
-
-*/
