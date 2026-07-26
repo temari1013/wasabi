@@ -979,6 +979,8 @@ use core::mem::size_of;
     
     fs.mkdir(&mut mem, b"/nested_dir" , BLOCK_SIZE);
     fs.mkdir(&mut mem, b"/nested_dir/nested_dir2" , BLOCK_SIZE);
+    fs.delete_dir_entry(&mut mem,b"/nested_dir/nested_dir2", BLOCK_SIZE);
+    fs.mkdir(&mut mem, b"/nested_dir/nested_dir2" , BLOCK_SIZE);
     fs.create_file(&mut mem,BLOCK_SIZE,  b"/nested_dir/nested_dir2/test.txt");
     fs.write(&mut mem, b"/nested_dir/nested_dir2/test.txt", BLOCK_SIZE, b"filesystem integration test");
 
