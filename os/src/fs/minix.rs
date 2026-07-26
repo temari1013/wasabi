@@ -1,5 +1,5 @@
-use core::fmt::write;
 
+extern crate alloc;
 use crate::error;
 use crate::fs::minix;
 use crate::info;
@@ -584,8 +584,7 @@ impl minix3_inode {
     pub fn delete_dir_entry(&self, minix_img: &mut [u8], file_path: &[u8], block_size: usize) {
         // パスを親ディレクトリと本人に分割
         let (parent_dir, filename) = split_path_and_filename(file_path);
-        // 本人のzone[0]を0埋めし、inodeのサイズを下げる
-        let inode_num = self.lookup_iter(filename, minix_img, block_size);
+let inode_num = self.lookup_iter(file_path, minix_img, block_size);
         let inode_ptr = self.get_inode(inode_num, block_size, minix_img);
         if inode_ptr.is_null() {
             return;
@@ -735,7 +734,8 @@ pub fn init_minixfs(mem: &mut [u8]) {
 #[cfg(test)]
 mod test {
     use super::*;
-    use core::mem::size_of;
+    use core::assert_eq;
+use core::mem::size_of;
     use core::ptr::read_unaligned;
 
     pub static MINIX3_IMG: [u8; 2097152] = *include_bytes!("minix3.img");
@@ -905,7 +905,7 @@ mod test {
         assert_eq!(target_inode_num, 3);
     }
 
-    #[test_case]
+
     fn delete_test() {
         let mut minix_img = include_bytes!("minix3.img").to_vec();
         let img_ptr = minix_img.as_mut_ptr();
@@ -965,5 +965,24 @@ mod test {
         let zmap_bit_idx = j % 8;
 
         assert_eq!((minix_img[zmap_byte_idx] & (1u8 << zmap_bit_idx)), 0);
+    }
+
+        #[test_case]
+    
+    fn integration_test() {
+          const BLOCK_SIZE: usize = 1024;
+    let fs = minix3_inode::new(0);
+    let size = 512 * 1024 * 1024;
+    let mut mem = alloc::vec![0u8; size];
+
+    init_minixfs(&mut mem);
+    
+    fs.mkdir(&mut mem, b"/nested_dir" , BLOCK_SIZE);
+    fs.mkdir(&mut mem, b"/nested_dir/nested_dir2" , BLOCK_SIZE);
+    fs.create_file(&mut mem,BLOCK_SIZE,  b"/nested_dir/nested_dir2/test.txt");
+    fs.write(&mut mem, b"/nested_dir/nested_dir2/test.txt", BLOCK_SIZE, b"filesystem integration test");
+
+    let result = fs.read(&mut mem, b"/nested_dir/nested_dir2/test.txt", BLOCK_SIZE);
+    assert_eq!(result,b"filesystem integration test" );
     }
 }
