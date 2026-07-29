@@ -235,7 +235,7 @@ fn main() -> Result<()> {
     let size = 512 * 1024 * 1024;
     let mut mem = vec![0u8; size];
 
-    init_minixfs(&mut mem);
+    init_minixfs(&mut mem, BLOCK_SIZE);
     let _ = fs.mkdir(&mut mem, b"/nested", BLOCK_SIZE);
     let _ = fs.delete_dir_entry(&mut mem, b"/nested", BLOCK_SIZE);
     let _ = fs.mkdir(&mut mem, b"/nested", BLOCK_SIZE);
@@ -246,11 +246,13 @@ fn main() -> Result<()> {
         BLOCK_SIZE,
         b"hello from new initialized filesystem",
     );
+       let _ = fs.show_directry_tree(&mut mem, BLOCK_SIZE);
     let _ = fs.delete_dir_entry(&mut mem, b"/nested/test.txt", BLOCK_SIZE);
 
 
     let _ = fs.show_directry_tree(&mut mem, BLOCK_SIZE);
     let res = fs.read(&mut mem, b"/nested/test.txt", BLOCK_SIZE);
+    // TODO : Errにunwrapすると壊れる
    // info!("{}", from_utf8(res?).unwrap());
     run_tasks()?;
     Ok(())
