@@ -13,8 +13,8 @@ use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
 use core::pin::Pin;
-use core::str::FromStr;
 use core::str::from_utf8;
+use core::str::FromStr;
 use noli::bitmap::bitmap_draw_line;
 use noli::bitmap::Bitmap;
 use os::boot_info::BootInfo;
@@ -240,20 +240,19 @@ fn main() -> Result<()> {
     let _ = fs.delete_dir_entry(&mut mem, b"/nested", BLOCK_SIZE);
     let _ = fs.mkdir(&mut mem, b"/nested", BLOCK_SIZE);
     let _ = fs.create_file(&mut mem, BLOCK_SIZE, b"/nested/test.txt");
-      let _ = fs.write(
+    let _ = fs.write(
         &mut mem,
         b"/nested/test.txt",
         BLOCK_SIZE,
         b"hello from new initialized filesystem",
     );
-       let _ = fs.show_directry_tree(&mut mem, BLOCK_SIZE);
+    let _ = fs.show_directry_tree(&mut mem, BLOCK_SIZE);
     let _ = fs.delete_dir_entry(&mut mem, b"/nested/test.txt", BLOCK_SIZE);
-
 
     let _ = fs.show_directry_tree(&mut mem, BLOCK_SIZE);
     let res = fs.read(&mut mem, b"/nested/test.txt", BLOCK_SIZE);
     // TODO : Errにunwrapすると壊れる
-   // info!("{}", from_utf8(res?).unwrap());
+    // info!("{}", from_utf8(res?).unwrap());
     run_tasks()?;
     Ok(())
 }
