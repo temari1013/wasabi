@@ -12,6 +12,7 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
     crate::println!("PANIC!!!");
     crate::println!("{}", info);
     Api::exit(1)
+
 }
 
 #[macro_export]
