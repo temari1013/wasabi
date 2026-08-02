@@ -522,7 +522,7 @@ impl minix3_inode {
 
         let inode = unsafe { *(inode_ptr as *const minix3_inode) };
 
-        if inode.i_mode == 0x4000 {
+        if (inode.i_mode & 0x4000) != 0 {
             // ディレクトリであれば中身が空でないと消去できない
             if inode.i_size != 128 {
                 return Err(Failed("directry is not empty"));
@@ -648,7 +648,7 @@ pub fn init_minixfs(mem: &mut [u8], block_size: usize) {
     change_i_bitmap(mem, block_size as usize, 1, 1);
 
     change_z_bitmap(mem, block_size, 0, 1);
-   change_z_bitmap(mem, block_size, 1, 1);
+    change_z_bitmap(mem, block_size, 1, 1);
 
     // . と .. の配置
     let entry_dot = minix3_dir_entry::new(1, b".");
@@ -863,85 +863,109 @@ mod test {
     }
 
     #[test_case]
-    #[test_case]
-fn delete_test() {
-    // delete_dir_entryを呼ぶと、想定通りにディレクトリエントリが削除されることを期待する
-    let mut minix_img = include_bytes!("minix3.img").to_vec();
-    let img_ptr = minix_img.as_mut_ptr();
-    let super_block_ptr = minix_img[BLOCK_SIZE..].as_ptr() as *const minix3_super_block;
-    let super_block = unsafe { core::ptr::read_unaligned(super_block_ptr) };
-    let root_inode_ptr = get_root_inode_ptr_mut(img_ptr, BLOCK_SIZE);
-    let root_inode = unsafe { read_unaligned(root_inode_ptr) };
+    fn delete_test() {
+        // delete_dir_entryを呼ぶと、想定通りにディレクトリエントリが削除されることを期待する
+        let mut minix_img = include_bytes!("minix3.img").to_vec();
+        let img_ptr = minix_img.as_mut_ptr();
+        let super_block_ptr = minix_img[BLOCK_SIZE..].as_ptr() as *const minix3_super_block;
+        let super_block = unsafe { core::ptr::read_unaligned(super_block_ptr) };
+        let root_inode_ptr = get_root_inode_ptr_mut(img_ptr, BLOCK_SIZE);
+        let root_inode = unsafe { read_unaligned(root_inode_ptr) };
 
-    // 自身のinodeのビットマップが１
-    let inode_num = 3;
-    let inode_byte_offset = (inode_num / 8) as usize;
-    let inode_bit_offset = inode_num % 8;
+        // 自身のinodeのビットマップが１
+        let inode_num = 3;
+        let inode_byte_offset = (inode_num / 8) as usize;
+        let inode_bit_offset = inode_num % 8;
 
-    let imap_base = 2 * BLOCK_SIZE;
+        let imap_base = 2 * BLOCK_SIZE;
 
-    let target_imap_byte_before = minix_img[imap_base + inode_byte_offset];
-    let is_inode_used_before = (target_imap_byte_before & (1 << inode_bit_offset)) != 0;
+        let target_imap_byte_before = minix_img[imap_base + inode_byte_offset];
+        let is_inode_used_before = (target_imap_byte_before & (1 << inode_bit_offset)) != 0;
 
-    assert!(is_inode_used_before, "inode bitmap is not set");
+        assert!(is_inode_used_before, "inode bitmap is not set");
 
-    // test.txtの存在するzone_num = 50 のビットマップが1
-    let firstdatazone = super_block.s_firstdatazone as usize;
-    let zmap_bit_index =50 - firstdatazone + 1;
+        // test.txtの存在するzone_num = 50 のビットマップが1
+        let firstdatazone = super_block.s_firstdatazone as usize;
+        let zmap_bit_index = 50 - firstdatazone + 1;
 
-    let zmap_base = super_block.zmap_start_block() as usize * BLOCK_SIZE;
-    let zmap_byte_offset = zmap_bit_index / 8;
-    let zmap_bit_offset = zmap_bit_index % 8;
+        let zmap_base = super_block.zmap_start_block() as usize * BLOCK_SIZE;
+        let zmap_byte_offset = zmap_bit_index / 8;
+        let zmap_bit_offset = zmap_bit_index % 8;
 
-    let target_zmap_byte_before = minix_img[zmap_base + zmap_byte_offset];
-    let is_zone_used_before = (target_zmap_byte_before & (1 << zmap_bit_offset)) != 0;
-     assert!(is_zone_used_before, "zone bitmap is not set before deletion");
+        let target_zmap_byte_before = minix_img[zmap_base + zmap_byte_offset];
+        let is_zone_used_before = (target_zmap_byte_before & (1 << zmap_bit_offset)) != 0;
+        assert!(
+            is_zone_used_before,
+            "zone bitmap is not set before deletion"
+        );
 
+        root_inode
+            .delete_dir_entry(&mut minix_img, b"/dir/test.txt", BLOCK_SIZE)
+            .unwrap();
 
-    root_inode.delete_dir_entry(&mut minix_img, b"/dir/test.txt", BLOCK_SIZE).unwrap();
+        // 自身のinodeのビットマップが0になっている
+        let target_imap_byte_after = minix_img[imap_base + inode_byte_offset];
+        let is_inode_used_after = (target_imap_byte_after & (1 << inode_bit_offset)) != 0;
+        assert!(!is_inode_used_after, "inode bitmap is not cleared");
 
-    // 自身のinodeのビットマップが0になっている
-    let target_imap_byte_after = minix_img[imap_base + inode_byte_offset];
-    let is_inode_used_after = (target_imap_byte_after & (1 << inode_bit_offset)) != 0;
-    assert!(!is_inode_used_after, "inode bitmap is not cleared");
+        // 親ディレクトリエントリのzone[0]に自身が存在しない
+        let parent_dir_offset = 2 * BLOCK_SIZE;
 
-    // 親ディレクトリエントリのzone[0]に自身が存在しない
-    let parent_dir_offset = 2 * BLOCK_SIZE;
+        let entries_count = BLOCK_SIZE / core::mem::size_of::<minix3_dir_entry>();
+        let mut entry_exists = false;
+        for i in 0..entries_count {
+            let dir_entry = unsafe {
+                *(minix_img.as_ptr().add(parent_dir_offset + i * 64) as *const minix3_dir_entry)
+            };
 
-    let entries_count = BLOCK_SIZE / core::mem::size_of::<minix3_dir_entry>();
-    let mut entry_exists = false;
-    for i in 0..entries_count {
-        let dir_entry =
-            unsafe { *(minix_img.as_ptr().add(parent_dir_offset + i * 64) as *const minix3_dir_entry) };
-
-        let len = dir_entry.name.iter().position(|&c| c == 0).unwrap_or(60);
-        let entry_name = &dir_entry.name[..len];
-        if entry_name == b"test.txt" {
-            entry_exists = true;
-            break;
+            let len = dir_entry.name.iter().position(|&c| c == 0).unwrap_or(60);
+            let entry_name = &dir_entry.name[..len];
+            if entry_name == b"test.txt" {
+                entry_exists = true;
+                break;
+            }
         }
+        assert!(entry_exists == false, "directory entry still exists");
+
+        // test.txtの存在するzone_num = 50 のビットマップが0
+        let target_zmap_byte_after = minix_img[zmap_base + zmap_byte_offset];
+        let is_zone_used_after = (target_zmap_byte_after & (1 << zmap_bit_offset)) != 0;
+        assert!(!is_zone_used_after, "zone bitmap is not cleared");
     }
-    assert!(entry_exists == false, "directory entry still exists");
 
-    // test.txtの存在するzone_num = 50 のビットマップが0
-    let target_zmap_byte_after = minix_img[zmap_base + zmap_byte_offset];
-    let is_zone_used_after = (target_zmap_byte_after & (1 << zmap_bit_offset)) != 0;
-    assert!(!is_zone_used_after, "zone bitmap is not cleared");
-}
+    #[test_case]
+    fn delete_test2() {
+        // 中が存在するディレクトリは削除できない
+        let mut minix_img = include_bytes!("minix3.img").to_vec();
+        let img_ptr = minix_img.as_mut_ptr();
+        let root_inode_ptr = get_root_inode_ptr_mut(img_ptr, BLOCK_SIZE);
+        let root_inode = unsafe { read_unaligned(root_inode_ptr) };
+
+        let result = root_inode.delete_dir_entry(&mut minix_img, b"/dir", BLOCK_SIZE);
+        assert!(
+            result.is_err(),
+            "Expected error when deleting non-empty directory"
+        );
+    }
+
     /*
-       //deleteのテストその２
-       // 中が存在するディレクトリは削除できない
-       #[test_case]
-       fn delete_test2() {
-           unimplemented!("todo delete_test2");
-       }
+     #[test_case]
+    fn minix_init_test() {
+        // init_minixfsを呼ぶと、想定通りに初期化されることを期待する
+        const BLOCK_SIZE: usize = 1024;
+        let size = 512 * 1024 * 1024;
+        let mut mem = alloc::vec![0u8; size];       
 
-       #[test_case]
-       fn minix_init_test() {
-           unimplemented!("todo minix_init_test");
-       }
+        init_minixfs(&mut mem, BLOCK_SIZE);
 
-    */
+        // superblockが存在する 
+        
+        // ゾーンマップの初期化チェック
+        // ルートディレクトリのinodeの初期化チェック
+        // ルートディレクトリのzone[0]に自身を指す. と .. が存在する
+    }
+     */
+   
 
     #[test_case]
     fn minix_integration_test() {
