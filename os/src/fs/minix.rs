@@ -254,6 +254,7 @@ impl minix3_inode {
         file_name: &[u8],
     ) -> Result<()> {
         let parent_inode_ptr = self.get_inode(parent_inode_num, block_size, minix_img)?;
+        // SAFETY : get_inodeからポインタが帰ってきているなら有効
         let parent_inode = unsafe { &mut *parent_inode_ptr };
 
         let entries_count = block_size / core::mem::size_of::<minix3_dir_entry>();
@@ -314,6 +315,7 @@ impl minix3_inode {
 
             if !is_used {
                 let allocated_zone = j + (super_block.s_firstdatazone as usize) - 1;
+                // SAFETY : get_inodeからポインタが帰ってきているならそれは有効
                 let inode = unsafe { &mut *inode_ptr };
 
                 if inode.i_zone[0] == 0 {
@@ -346,7 +348,7 @@ impl minix3_inode {
         info!("Current function: {}", function_name!());
         let inode_num = self.lookup_iter(file_path, minix_img, block_size)?;
         let inode = self.get_inode(inode_num, block_size, minix_img)?;
-        // SAFETY: 
+        // SAFETY: get_inodeからポインタが帰ってきているならそれは有効
         let mut zone = unsafe { (*inode).i_zone[0] };
 
         // 書き込み時にzoneが存在しない場合新規にアロックする
@@ -423,6 +425,7 @@ impl minix3_inode {
         info!("Current function: {}", function_name!());
         let inode_num = self.lookup_iter(file_path, minix_img, block_size)?;
         let inode = self.get_inode(inode_num, block_size, minix_img)?;
+        // SAFETY : get_inodeからポインタが帰ってきているならそれは有効
         let (zone, size) = unsafe { ((*inode).i_zone[0], (*inode).i_size as usize) };
 
         if zone == 0 || size == 0 {
@@ -449,6 +452,7 @@ impl minix3_inode {
     ) -> Result<()> {
         // info!("Current function: {}", function_name!());
         let inode_ptr = self.get_inode(inode_num, block_size, minix_img)?;
+        // SAFETY : get_inodeからポインタが帰ってきているならそれは有効
         let inode = unsafe { &*inode_ptr };
 
         if (inode.i_mode & 0x4000) == 0 {
@@ -485,6 +489,7 @@ impl minix3_inode {
             let indent_str = core::str::from_utf8(&indent[..spaces]).unwrap_or("");
 
             let child_inode_ptr = self.get_inode(entry.inode, block_size, minix_img)?;
+            // SAFETY : get_inodeからポインタが帰ってきているならそれは有効
             let child_inode = unsafe { &*child_inode_ptr };
 
             if (child_inode.i_mode & 0x4000) != 0 {
@@ -521,6 +526,7 @@ impl minix3_inode {
         let inode_num = self.lookup_iter(file_path, minix_img, block_size)?;
         let inode_ptr = self.get_inode(inode_num, block_size, minix_img)?;
 
+        // SAFETY : get_inodeからポインタが帰ってきているならそれは有効
         let inode = unsafe { *(inode_ptr as *const minix3_inode) };
 
         if (inode.i_mode & 0x4000) != 0 {
@@ -530,12 +536,13 @@ impl minix3_inode {
             }
         }
 
-        let zone_block_num = unsafe { (*inode_ptr).i_zone[0] as usize };
+        let zone_block_num = inode.i_zone[0] as usize;
         if zone_block_num != 0 {
             let zone_offset = zone_block_num * block_size;
             if zone_offset + block_size <= minix_img.len() {
                 minix_img[zone_offset..zone_offset + block_size].fill(0);
             }
+            // SAFETY : get_inodeからポインタが帰ってきているならそれは有効
             unsafe {
                 (*inode_ptr).i_zone[0] = 0;
                 (*inode_ptr).i_size = 0;
@@ -569,6 +576,7 @@ impl minix3_inode {
         }
 
         let parent_inode_ptr = self.get_inode(parent_inode_num, block_size, minix_img)?;
+        // SAFETY : get_inodeからポインタが帰ってきているならそれは有効
         let parent_zone_block_num = unsafe { (*parent_inode_ptr).i_zone[0] as usize };
         if parent_zone_block_num == 0 {
             return Err(Failed("parent zone block number is 0"));
@@ -765,6 +773,7 @@ mod test {
         let img_ptr = MINIX3_IMG.as_ptr();
 
         let root_inode_ptr = get_root_inode_ptr(img_ptr, BLOCK_SIZE);
+        // SAFETY : get_inodeからポインタが帰ってきているならそれは有効
         let root_inode = unsafe { core::ptr::read_unaligned(root_inode_ptr) };
 
         let data = root_inode
