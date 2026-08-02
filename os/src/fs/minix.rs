@@ -359,7 +359,7 @@ impl minix3_inode {
         let zone_byte = zone as usize * block_size;
         let copy_len = data.len();
 
-        // SAFETY: 
+        // SAFETY:
         unsafe {
             let dst_ptr = minix_img.as_mut_ptr().add(zone_byte);
             for i in 0..copy_len {
@@ -958,30 +958,97 @@ mod test {
         );
     }
 
-    /*
-     #[test_case]
+    #[test_case]
     fn minix_init_test() {
         // init_minixfsを呼ぶと、想定通りに初期化されることを期待する
         const BLOCK_SIZE: usize = 1024;
-        let size = 512 * 1024 * 1024;
-        let mut mem = alloc::vec![0u8; size];       
+        let size = 4 * 1024 * 1024;
+        let mut mem = alloc::vec![0u8; size];
 
         init_minixfs(&mut mem, BLOCK_SIZE);
 
-        // superblockが存在する 
-        
-        // ゾーンマップの初期化チェック
+        // superblockに想定通りの値が入っている
+        let super_block_ptr = mem[BLOCK_SIZE..].as_ptr() as *const minix3_super_block;
+        let super_block = unsafe { core::ptr::read_unaligned(super_block_ptr) };
+
+        // TODO 期待する値をイコールに変更したい
+        assert!(
+            super_block.s_ninodes > 0,
+            "s_ninodes should be greater than 0"
+        );
+        assert!(
+            super_block.s_imap_blocks > 0,
+            "s_imap_blocks should be greater than 0"
+        );
+        assert!(
+            super_block.s_zmap_blocks > 0,
+            "s_zmap_blocks should be greater than 0"
+        );
+        assert!(
+            super_block.s_firstdatazone > 0,
+            "s_firstdatazone should be greater than 0"
+        );
+        assert!(super_block.s_zones > 0, "s_zones should be greater than 0");
+
+        // inode, zoneのbitmapの[0]と[1]が1になっていることを確認する
+        let imap_start_block = super_block.imap_start_block();
+        let imap_byte_offset = imap_start_block * BLOCK_SIZE;
+        let imap_byte = mem[imap_byte_offset];
+        assert!(
+            imap_byte == 0b00000011,
+            "First two inodes should be marked as used in imap"
+        );
+
+        let zmap_start_block = super_block.zmap_start_block();
+        let zmap_byte_offset = zmap_start_block * BLOCK_SIZE;
+        let zmap_byte = mem[zmap_byte_offset];
+        assert!(
+            zmap_byte  == 0b00000011,
+            "First two zones should be marked as used in zmap"
+        );
+
         // ルートディレクトリのinodeの初期化チェック
+        let inode_table_block =
+            2 + super_block.s_imap_blocks as usize + super_block.s_zmap_blocks as usize;
+        let root_inode_offset = inode_table_block * BLOCK_SIZE;
+        let root_inode_ptr = mem[root_inode_offset..].as_ptr() as *const minix3_inode;
+        let root_inode = unsafe { core::ptr::read_unaligned(root_inode_ptr) };
+
+        let i_mode = root_inode.i_mode;
+        assert_eq!(i_mode & 0x4000, 0x4000, "Root inode should be a directory");
+
+        let i_size = root_inode.i_size;
+        assert_eq!(i_size, 128, "Root inode size should be 128");
+
         // ルートディレクトリのzone[0]に自身を指す. と .. が存在する
+        let root_zone_offset = root_inode.i_zone[0] as usize * BLOCK_SIZE;
+        let entries_count = BLOCK_SIZE / core::mem::size_of::<minix3_dir_entry>();
+        let entries = unsafe {
+            core::slice::from_raw_parts(
+                mem.as_ptr().add(root_zone_offset) as *const minix3_dir_entry,
+                entries_count,
+            )
+        };
+        let mut found_dot = false;
+        let mut found_dotdot = false;
+        for entry in entries {
+            let len = entry.name.iter().position(|&c| c == 0).unwrap_or(60);
+            let entry_name = &entry.name[..len];
+            if entry_name == b"." {
+                found_dot = true;
+            } else if entry_name == b".." {
+                found_dotdot = true;
+            }
+        }
+        assert!(found_dot, "Root directory should contain '.' entry");
+        assert!(found_dotdot, "Root directory should contain '..' entry");
     }
-     */
-   
 
     #[test_case]
     fn minix_integration_test() {
         const BLOCK_SIZE: usize = 1024;
         let fs = minix3_inode::new(0);
-        let size = 512 * 1024 * 1024;
+        let size = 4 * 1024 * 1024;
         let mut mem = alloc::vec![0u8; size];
 
         init_minixfs(&mut mem, BLOCK_SIZE);
