@@ -115,6 +115,16 @@ impl minix3_dir_entry {
         };
         Ok(entries)
     }
+    
+    fn as_bytes(&self) -> &[u8] {
+        // SAFETY : selfは有効なminix3_dir_entryである
+        unsafe {
+            core::slice::from_raw_parts(
+                (self as *const minix3_dir_entry) as *const u8,
+                core::mem::size_of::<minix3_dir_entry>(),
+            )
+        }
+    }
 }
 
 #[repr(C, packed)]
@@ -403,14 +413,18 @@ impl minix3_inode {
 
         let dot_entry = minix3_dir_entry::new(new_inode_num, b".");
         let dotdot_entry = minix3_dir_entry::new(parent_inode_num, b"..");
-        unsafe {
-            let base = minix_img.as_mut_ptr().add(zone_offset) as *mut minix3_dir_entry;
-            core::ptr::write(base, dot_entry);
-            core::ptr::write(base.add(1), dotdot_entry);
 
-            // inode.i_sizeを128に更新する
-            let new_inode_ptr = self.get_inode(new_inode_num, block_size, minix_img)?;
-            (*new_inode_ptr).i_size = 128;
+        let zone = &mut minix_img[zone_offset..zone_offset + block_size];
+
+        zone[0..size_of::<minix3_dir_entry>()].copy_from_slice(dot_entry.as_bytes());
+        zone[size_of::<minix3_dir_entry>()..size_of::<minix3_dir_entry>() * 2]
+            .copy_from_slice(dotdot_entry.as_bytes());
+
+        let new_inode_ptr = self.get_inode(new_inode_num, block_size, minix_img)?;
+
+        // SAFETY: get_inodeがエラーでないなら有効なポインタ
+        unsafe {
+            (*new_inode_ptr).i_size = size_of::<minix3_dir_entry>() as u32 * 2 ;
         }
 
         Ok(new_inode_num)
@@ -663,11 +677,10 @@ pub fn init_minixfs(mem: &mut [u8], block_size: usize) {
     let entry_dot = minix3_dir_entry::new(1, b".");
     let entry_dotdot = minix3_dir_entry::new(1, b"..");
     let data_offset = firstdatazone as usize * block_size as usize;
-    unsafe {
-        let mem_ptr = mem.as_mut_ptr().add(data_offset) as *mut minix3_dir_entry;
-        core::ptr::write_unaligned(mem_ptr, entry_dot);
-        core::ptr::write_unaligned(mem_ptr.add(1), entry_dotdot);
-    }
+
+    let target = &mut mem[data_offset..data_offset + 2 * size_of::<minix3_dir_entry>()];
+    target[..size_of::<minix3_dir_entry>()].copy_from_slice(entry_dot.as_bytes());
+    target[size_of::<minix3_dir_entry>()..2 * size_of::<minix3_dir_entry>()].copy_from_slice(entry_dotdot.as_bytes());
 }
 
 pub fn get_super_block(minix_img: &mut [u8], block_size: usize) -> minix3_super_block {
@@ -1003,7 +1016,7 @@ mod test {
         let zmap_byte_offset = zmap_start_block * BLOCK_SIZE;
         let zmap_byte = mem[zmap_byte_offset];
         assert!(
-            zmap_byte  == 0b00000011,
+            zmap_byte == 0b00000011,
             "First two zones should be marked as used in zmap"
         );
 
