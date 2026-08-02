@@ -846,16 +846,14 @@ mod test {
     #[test_case]
     fn delete_test() {
         // delete_dir_entryを呼ぶと、想定通りにディレクトリエントリが削除されることを期待する
-        // 親ディレクトリエントリのzone[0]に自身が存在しないこと
-        // 事前に確認した自身のinodeのビットマップが0になっていること
-        // (存在する場合)自身のzone[0]のビットマップが0になっていること
+       
 
         let mut minix_img = include_bytes!("minix3.img").to_vec();
         let img_ptr = minix_img.as_mut_ptr();
         let root_inode_ptr = get_root_inode_ptr_mut(img_ptr, BLOCK_SIZE);
         let root_inode = unsafe { read_unaligned(root_inode_ptr) };
 
-        // 自身のinodeのビットマップが最初は1になっていることを確認する
+        // 自身のinodeのビットマップが１
 
         let inode_num = 3;
         let byte_offset = (inode_num / 8) as usize;
@@ -869,16 +867,31 @@ mod test {
         assert!(is_used, "inode bitmap is not set");
 
         root_inode.delete_dir_entry(&mut minix_img, b"/dir/test.txt", BLOCK_SIZE).unwrap();
-        // 自身のinodeのビットマップが0になっていること
+
+        // 自身のinodeのビットマップが0になっている
         let target_byte_after = minix_img[imap_base + byte_offset];
         let is_used = (target_byte_after & (1 << bit_offset)) != 0;
         assert!(!is_used, "inode bitmap is not cleared");
 
-        // 親ディレクトリエントリのzone[0]に自身が存在しないこと
-        let offset = 2 * BLOCK_SIZE;
+        // 親ディレクトリエントリのzone[0]に自身が存在しない
+         let offset = 2 * BLOCK_SIZE;
 
-        let super_block_ptr = minix_img[BLOCK_SIZE..].as_ptr() as *const minix3_super_block;
-        let super_block = unsafe { read_unaligned(super_block_ptr) };
+        let entries_count = BLOCK_SIZE / core::mem::size_of::<minix3_dir_entry>();
+        let mut assertion = false;
+        for i in 0..entries_count {
+            let dir_entry =
+                unsafe { *(minix_img.as_ptr().add(offset + i * 64) as *const minix3_dir_entry) };
+
+            let len = dir_entry.name.iter().position(|&c| c == 0).unwrap_or(60);
+            let entry_name = &dir_entry.name[..len];
+            if entry_name == b"test.txt" {
+                assertion = true;
+                break;
+            }
+        }
+        assert!(assertion == false, "directory entry still exists");
+
+         // (存在する場合)自身のzone[0]のビットマップが0になっていること
     }
 
     /*
