@@ -647,19 +647,8 @@ pub fn init_minixfs(mem: &mut [u8], block_size: usize) {
     change_i_bitmap(mem, block_size as usize, 0, 1);
     change_i_bitmap(mem, block_size as usize, 1, 1);
 
-    let zmap_offset = (2 + imap_blocks) as usize * block_size as usize;
-    let reserved_zones = firstdatazone + 1;
-    for i in 0..reserved_zones {
-        let byte_idx = (i / 8) as usize;
-        let bit_idx = i % 8;
-        mem[zmap_offset + byte_idx] |= 1 << bit_idx;
-    }
-    let total_bits_in_zmap = zmap_blocks as u32 * block_size as u32 * 8;
-    for i in total_blocks as u32..total_bits_in_zmap {
-        let byte_idx = (i / 8) as usize;
-        let bit_idx = i % 8;
-        mem[zmap_offset + byte_idx] |= 1 << bit_idx;
-    }
+    change_z_bitmap(mem, block_size, 0, 1);
+   change_z_bitmap(mem, block_size, 1, 1);
 
     // . と .. の配置
     let entry_dot = minix3_dir_entry::new(1, b".");
@@ -680,6 +669,17 @@ pub fn get_super_block(minix_img: &mut [u8], block_size: usize) -> minix3_super_
 
 fn change_i_bitmap(minix_img: &mut [u8], block_size: usize, bit_index: usize, value: u8) {
     let start_block = get_super_block(minix_img, block_size).imap_start_block();
+    let byte_idx = (start_block * block_size) + (bit_index / 8);
+    let bit_idx = bit_index % 8;
+
+    if value == 1 {
+        minix_img[byte_idx] |= 1u8 << bit_idx;
+    } else {
+        minix_img[byte_idx] &= !(1u8 << bit_idx);
+    }
+}
+fn change_z_bitmap(minix_img: &mut [u8], block_size: usize, bit_index: usize, value: u8) {
+    let start_block = get_super_block(minix_img, block_size).zmap_start_block();
     let byte_idx = (start_block * block_size) + (bit_index / 8);
     let bit_idx = bit_index % 8;
 
