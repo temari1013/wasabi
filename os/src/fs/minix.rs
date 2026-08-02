@@ -314,7 +314,6 @@ impl minix3_inode {
 
             if !is_used {
                 let allocated_zone = j + (super_block.s_firstdatazone as usize) - 1;
-
                 let inode = unsafe { &mut *inode_ptr };
 
                 if inode.i_zone[0] == 0 {
@@ -347,6 +346,7 @@ impl minix3_inode {
         info!("Current function: {}", function_name!());
         let inode_num = self.lookup_iter(file_path, minix_img, block_size)?;
         let inode = self.get_inode(inode_num, block_size, minix_img)?;
+        // SAFETY: 
         let mut zone = unsafe { (*inode).i_zone[0] };
 
         // 書き込み時にzoneが存在しない場合新規にアロックする
@@ -357,6 +357,7 @@ impl minix3_inode {
         let zone_byte = zone as usize * block_size;
         let copy_len = data.len();
 
+        // SAFETY: 
         unsafe {
             let dst_ptr = minix_img.as_mut_ptr().add(zone_byte);
             for i in 0..copy_len {

@@ -1,0 +1,10 @@
+[package]
+name = "file_transfer"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name="file_transfer"
+
+[dependencies]
+noli = { path = "../../noli", version = "0.1.0" }
