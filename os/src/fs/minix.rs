@@ -104,6 +104,7 @@ impl minix3_dir_entry {
         entries_count: u32,
     ) -> Result<&mut [minix3_dir_entry]> {
         // そのゾーンに含まれるエントリの配列を返す
+        // SAFETY : zone_block_numが有効なブロック番号であり、minix_imgが十分な長さを持つことは呼び出し元の責任
         let entries = unsafe {
             core::slice::from_raw_parts_mut(
                 minix_img
@@ -141,6 +142,16 @@ pub struct minix3_inode {
     pub i_zone: [u32; 10],
 }
 impl minix3_inode {
+    fn as_bytes(&self) -> &[u8] {
+        // SAFETY : selfは有効なminix3_inodeである
+        unsafe {
+            core::slice::from_raw_parts(
+                (self as *const minix3_inode) as *const u8,
+                core::mem::size_of::<minix3_inode>(),
+            )
+        }
+    }
+
     pub fn get_inode(
         &self,
         inode_num: u32,
@@ -191,11 +202,11 @@ impl minix3_inode {
         let entries_count = block_size / core::mem::size_of::<minix3_dir_entry>();
 
         for i in 0..entries_count {
-            // SAFETY :  TODO
+            // SAFETY : entries_countの範囲内でアクセスしているので、minix_imgの有効範囲内である
             let dir_entry = unsafe {
                 *(minix_img
                     .as_ptr()
-                    .add(parent_zone_block_num * block_size + i * 64)
+                    .add(parent_zone_block_num * block_size + i * size_of::<minix3_dir_entry>())
                     as *const minix3_dir_entry)
             };
             let len = dir_entry.name.iter().position(|&c| c == 0).unwrap_or(60);
@@ -248,10 +259,10 @@ impl minix3_inode {
             + ((inode_num - 1) * core::mem::size_of::<minix3_inode>());
 
         let node = Self::new(mode);
-        unsafe {
-            let target_ptr = minix_img.as_mut_ptr().add(inode_offset) as *mut minix3_inode;
-            core::ptr::write(target_ptr, node);
-        }
+        let target = & mut minix_img[inode_offset..inode_offset + size_of::<minix3_inode>()];
+        
+        target.copy_from_slice(node.as_bytes());
+        
         Ok(inode_num as u32)
     }
 
@@ -369,7 +380,9 @@ impl minix3_inode {
         let zone_byte = zone as usize * block_size;
         let copy_len = data.len();
 
-        // SAFETY:
+        // SAFETY: TODO 
+        // 多分unsafe使用しなくても書ける
+        
         unsafe {
             let dst_ptr = minix_img.as_mut_ptr().add(zone_byte);
             for i in 0..copy_len {
