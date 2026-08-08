@@ -93,7 +93,22 @@ impl ProcessContext {
     pub fn create_tcp_socket(&mut self, ip: IpV4Addr, port: u16) -> Result<i64> {
         let network = Network::take();
         let sock = network.open_tcp_socket(ip, port)?;
-        for handle in core::cmp::max(0, self.next_tcp_socket_handle)..=i64::MAX {
+        self.handle_tcp_socket(sock)
+    }
+    pub fn tcp_socket(&self, handle: i64) -> Option<Rc<TcpSocket>> {
+        self.tcp_sockets.get(&handle).cloned()
+    }
+   
+   pub fn tcp_server_socket(&mut self , port: u16) -> Result<i64>{
+    let network = Network::take();
+    let sock = Rc::new(TcpSocket::new_server(port));
+    network.register_tcp_socket(sock.clone())?;
+    
+    self.handle_tcp_socket(sock)
+   }
+
+   fn handle_tcp_socket(&mut self , sock: Rc<TcpSocket>) -> Result<i64>{
+    for handle in core::cmp::max(0, self.next_tcp_socket_handle)..=i64::MAX {
             if let btree_map::Entry::Vacant(e) = self.tcp_sockets.entry(handle) {
                 e.insert(sock.clone());
                 self.next_tcp_socket_handle = self.next_tcp_socket_handle.wrapping_add(1);
@@ -102,10 +117,7 @@ impl ProcessContext {
             }
         }
         Err(Error::Failed("No more tcp_socket handle available"))
-    }
-    pub fn tcp_socket(&self, handle: i64) -> Option<Rc<TcpSocket>> {
-        self.tcp_sockets.get(&handle).cloned()
-    }
+   }
 }
 
 pub struct Scheduler {

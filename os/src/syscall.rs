@@ -221,6 +221,20 @@ fn sys_tcp_read(args: &[u64; 5]) -> i64 {
         Err(e) => e,
     }
 }
+fn sys_tcp_accept(args: &[u64; 5]) -> i64 {
+     let ip = IpV4Addr::new((args[0] as u32).to_be_bytes());
+    let port: u16 = args[1] as u16;
+    if let Some(proc) = CURRENT_PROCESS.lock().as_mut() {
+        if let Ok(handle) = proc.create_tcp_socket(ip, port) {
+            handle
+        } else {
+            -1
+        }
+    } else {
+        -1
+    }
+
+}
 
 pub fn syscall_handler(op: u64, args: &[u64; 5]) -> u64 {
     match op {
@@ -235,6 +249,9 @@ pub fn syscall_handler(op: u64, args: &[u64; 5]) -> u64 {
         8 => sys_tcp_connect(args) as u64,
         9 => sys_tcp_write(args) as u64,
         10 => sys_tcp_read(args) as u64,
+        11=> sys_tcp_accept(args) as u64,
+        
+        
         op => {
             println!("syscall: unimplemented syscall: {}", op);
             // Return u64::MAX here as it may be the "most unexpected value" that can crash the
