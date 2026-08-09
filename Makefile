@@ -22,7 +22,7 @@ QEMU_ARGS=\
 		-bios $(OVMF) \
 		-device qemu-xhci \
 		-device isa-debug-exit,iobase=0xf4,iosize=0x01 \
-		-netdev user,id=net1,hostfwd=tcp::$(TCP_FORWARD_PORT)-:$(TCP_FORWARD_PORT) \
+		-netdev user,id=net1,hostfwd=tcp::$(TCP_FORWARD_PORT)-:$(TCP_FORWARD_PORT),hostfwd=tcp::18082-:18082 \
 		-device rtl8139,netdev=net1 \
 		-object filter-dump,id=f2,netdev=net1,file=log/dump_net1.pcap \
 		-m 1024M \

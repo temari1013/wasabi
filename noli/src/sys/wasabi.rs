@@ -92,6 +92,7 @@ unsafe impl GlobalAlloc for GlobalAllocatorWrapper {
 
 use core::arch::asm;
 
+// syscall_nで引数の個数を表している
 fn syscall_0(func: u64) -> u64 {
     syscall_5(func, 0, 0, 0, 0, 0)
 }
@@ -184,6 +185,9 @@ impl SystemApi for Api {
             result.as_ptr() as u64,
             result.len() as u64,
         ) as i64
+    }
+    fn open_easy_tcp_server(port: u16) -> i64 {
+        syscall_1(11, port as u64) as i64
     }
     fn open_tcp_socket(ip: RawIpV4Addr, port: u16) -> i64 {
         syscall_2(8, u32::from_be_bytes(ip) as u64, port as u64) as i64

@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "app/sheet",
+    "app/test_tcp_server",
     "app/dig",
     "app/hello0",
     "app/hello1",

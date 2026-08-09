@@ -116,7 +116,7 @@ impl minix3_dir_entry {
         };
         Ok(entries)
     }
-    
+
     fn as_bytes(&self) -> &[u8] {
         // SAFETY : selfは有効なminix3_dir_entryである
         unsafe {
@@ -259,10 +259,10 @@ impl minix3_inode {
             + ((inode_num - 1) * core::mem::size_of::<minix3_inode>());
 
         let node = Self::new(mode);
-        let target = & mut minix_img[inode_offset..inode_offset + size_of::<minix3_inode>()];
-        
+        let target = &mut minix_img[inode_offset..inode_offset + size_of::<minix3_inode>()];
+
         target.copy_from_slice(node.as_bytes());
-        
+
         Ok(inode_num as u32)
     }
 
@@ -380,9 +380,9 @@ impl minix3_inode {
         let zone_byte = zone as usize * block_size;
         let copy_len = data.len();
 
-        // SAFETY: TODO 
+        // SAFETY: TODO
         // 多分unsafe使用しなくても書ける
-        
+
         unsafe {
             let dst_ptr = minix_img.as_mut_ptr().add(zone_byte);
             for i in 0..copy_len {
@@ -437,7 +437,7 @@ impl minix3_inode {
 
         // SAFETY: get_inodeがエラーでないなら有効なポインタ
         unsafe {
-            (*new_inode_ptr).i_size = size_of::<minix3_dir_entry>() as u32 * 2 ;
+            (*new_inode_ptr).i_size = size_of::<minix3_dir_entry>() as u32 * 2;
         }
 
         Ok(new_inode_num)
@@ -693,7 +693,8 @@ pub fn init_minixfs(mem: &mut [u8], block_size: usize) {
 
     let target = &mut mem[data_offset..data_offset + 2 * size_of::<minix3_dir_entry>()];
     target[..size_of::<minix3_dir_entry>()].copy_from_slice(entry_dot.as_bytes());
-    target[size_of::<minix3_dir_entry>()..2 * size_of::<minix3_dir_entry>()].copy_from_slice(entry_dotdot.as_bytes());
+    target[size_of::<minix3_dir_entry>()..2 * size_of::<minix3_dir_entry>()]
+        .copy_from_slice(entry_dotdot.as_bytes());
 }
 
 pub fn get_super_block(minix_img: &mut [u8], block_size: usize) -> minix3_super_block {

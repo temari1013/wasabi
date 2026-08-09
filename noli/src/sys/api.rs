@@ -67,4 +67,8 @@ pub trait SystemApi {
     fn read_from_tcp_socket(_handle: i64, _buf: &mut [u8]) -> i64 {
         unimplemented!()
     }
+
+    fn open_easy_tcp_server(_port: u16) -> i64 {
+        unimplemented!()
+    }
 }

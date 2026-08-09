@@ -221,19 +221,32 @@ fn sys_tcp_read(args: &[u64; 5]) -> i64 {
         Err(e) => e,
     }
 }
-fn sys_tcp_accept(args: &[u64; 5]) -> i64 {
-     let ip = IpV4Addr::new((args[0] as u32).to_be_bytes());
-    let port: u16 = args[1] as u16;
-    if let Some(proc) = CURRENT_PROCESS.lock().as_mut() {
-        if let Ok(handle) = proc.create_tcp_socket(ip, port) {
-            handle
-        } else {
-            -1
-        }
-    } else {
-        -1
+fn sys_open_easy_tcp_server(args: &[u64; 5]) -> i64 {
+    let port: u16 = args[0] as u16;
+    let (handle, sock) = {
+        let mut current_process = CURRENT_PROCESS.lock();
+
+        let Some(proc) = current_process.as_mut() else {
+            return -1;
+        };
+        let handle = match proc.open_easy_tcp_server(port) {
+            Ok(handle) => handle,
+            Err(_) => return -1,
+        };
+        let sock = match proc.tcp_socket(handle) {
+            Some(sock) => sock,
+            None => return -1,
+        };
+
+        (handle, sock)
+    };
+    // 接続の確立を待機
+    while !sock.is_established() {
+        Scheduler::root().switch_process();
     }
 
+    // 簡易的なサーバー用なので接続確立時と同じsocketをそのまま返す
+    return handle;
 }
 
 pub fn syscall_handler(op: u64, args: &[u64; 5]) -> u64 {
@@ -249,9 +262,8 @@ pub fn syscall_handler(op: u64, args: &[u64; 5]) -> u64 {
         8 => sys_tcp_connect(args) as u64,
         9 => sys_tcp_write(args) as u64,
         10 => sys_tcp_read(args) as u64,
-        11=> sys_tcp_accept(args) as u64,
-        
-        
+        11 => sys_open_easy_tcp_server(args) as u64,
+
         op => {
             println!("syscall: unimplemented syscall: {}", op);
             // Return u64::MAX here as it may be the "most unexpected value" that can crash the
