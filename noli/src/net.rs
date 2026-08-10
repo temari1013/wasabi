@@ -132,14 +132,20 @@ impl TcpStream {
         }
     }
     // streamのr/w実装を流用したい
-    pub fn open_easy_tcp_server(port:u16) ->Result<TcpStream> {
+    pub fn open_easy_tcp_server(port: u16) -> Result<TcpStream> {
         let handle = Api::open_easy_tcp_server(port);
-        if handle < 0{
-            return Err(Failed("failed in Api::open_easy_tcp_server"))
+        if handle < 0 {
+            return Err(Failed("failed in Api::open_easy_tcp_server"));
         }
         Ok(
             //TODO : sock_addrは特に何かに使われている値ではないので一旦適当な値をいれてある
-            TcpStream { sock_addr: SocketAddr { addr:IpV4Addr([0,0,0,0]) , port }, handle }
+            TcpStream {
+                sock_addr: SocketAddr {
+                    addr: IpV4Addr([0, 0, 0, 0]),
+                    port,
+                },
+                handle,
+            },
         )
     }
 }

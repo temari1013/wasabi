@@ -10,10 +10,8 @@ extern crate alloc;
 
 use alloc::rc::Rc;
 use alloc::string::String;
-use alloc::vec;
 use alloc::vec::Vec;
 use core::pin::Pin;
-use core::str::from_utf8;
 use core::str::FromStr;
 use noli::bitmap::bitmap_draw_line;
 use noli::bitmap::Bitmap;
@@ -30,7 +28,7 @@ use os::executor::run_global_poll_loop;
 use os::executor::spawn_global;
 use os::executor::yield_execution;
 use os::executor::TimeoutFuture;
-use os::fs::minix::*;
+use os::fs::minix_manager::MinixFs;
 use os::info;
 use os::init;
 use os::input::InputManager;
@@ -230,29 +228,9 @@ fn main() -> Result<()> {
     os::process::init();
     init_syscall();
 
-    const BLOCK_SIZE: usize = 1024;
-    let fs = minix3_inode::new(0);
-    let size = 512 * 1024 * 1024;
-    let mut mem = vec![0u8; size];
+    MinixFs::init()?;
+    MinixFs::show_directory_tree()?;
 
-    init_minixfs(&mut mem, BLOCK_SIZE);
-    let _ = fs.mkdir(&mut mem, b"/nested", BLOCK_SIZE);
-    let _ = fs.delete_dir_entry(&mut mem, b"/nested", BLOCK_SIZE);
-    let _ = fs.mkdir(&mut mem, b"/nested", BLOCK_SIZE);
-    let _ = fs.create_file(&mut mem, BLOCK_SIZE, b"/nested/test.txt");
-    let _ = fs.write(
-        &mut mem,
-        b"/nested/test.txt",
-        BLOCK_SIZE,
-        b"hello from new initialized filesystem",
-    );
-    let _ = fs.show_directry_tree(&mut mem, BLOCK_SIZE);
-    let _ = fs.delete_dir_entry(&mut mem, b"/nested/test.txt", BLOCK_SIZE);
-
-    let _ = fs.show_directry_tree(&mut mem, BLOCK_SIZE);
-    let res = fs.read(&mut mem, b"/nested/test.txt", BLOCK_SIZE);
-    // TODO : Errにunwrapすると壊れる
-    // info!("{}", from_utf8(res?).unwrap());
     run_tasks()?;
     Ok(())
 }
