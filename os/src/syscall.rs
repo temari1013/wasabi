@@ -302,9 +302,16 @@ fn sys_direct_read(args: &[u64; 5]) -> i64 {
     bytes_read as i64
 }
 
-fn sys_direct_wriite() {
-    unimplemented!()
+fn sys_direct_wriite(args: &[u64; 5]) {
+     let path = {
+        let path = args[0] as *const u8;
+        let len = args[1] as usize;
+        unsafe { core::slice::from_raw_parts(path, len) }
+    };
+
+    
 }
+
 
 fn sys_show_directory_tree() -> i64 {
     // TODO : MinixFSに直接は依存させたくないので今後真面目にlsを実装してこのコマンドは削除する

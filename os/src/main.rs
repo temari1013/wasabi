@@ -15,6 +15,7 @@ use core::pin::Pin;
 use core::str::FromStr;
 use noli::bitmap::bitmap_draw_line;
 use noli::bitmap::Bitmap;
+use noli::prelude::{Api, SystemApi};
 use os::boot_info::BootInfo;
 use os::boot_info::File;
 use os::cmd;
@@ -229,6 +230,10 @@ fn main() -> Result<()> {
     init_syscall();
 
     MinixFs::init()?;
+    MinixFs::create_file(b"/test.txt")?;
+    MinixFs::write(b"/test.txt", b"power pc festival")?;
+
+   
 
     run_tasks()?;
     Ok(())
