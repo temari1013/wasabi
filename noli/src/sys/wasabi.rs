@@ -189,6 +189,11 @@ impl SystemApi for Api {
     fn open_easy_tcp_server(port: u16) -> i64 {
         syscall_1(11, port as u64) as i64
     }
+
+    fn open_file(path: &[u8], fmode_t: u8) -> i64 {
+        syscall_3(12, path.as_ptr() as u64, path.len() as u64, fmode_t as u64) as i64
+    }
+
     fn open_tcp_socket(ip: RawIpV4Addr, port: u16) -> i64 {
         syscall_2(8, u32::from_be_bytes(ip) as u64, port as u64) as i64
     }

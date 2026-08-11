@@ -221,6 +221,7 @@ fn sys_tcp_read(args: &[u64; 5]) -> i64 {
         Err(e) => e,
     }
 }
+
 fn sys_open_easy_tcp_server(args: &[u64; 5]) -> i64 {
     let port: u16 = args[0] as u16;
     let (handle, sock) = {
@@ -229,6 +230,7 @@ fn sys_open_easy_tcp_server(args: &[u64; 5]) -> i64 {
         let Some(proc) = current_process.as_mut() else {
             return -1;
         };
+
         let handle = match proc.open_easy_tcp_server(port) {
             Ok(handle) => handle,
             Err(_) => return -1,
@@ -250,12 +252,24 @@ fn sys_open_easy_tcp_server(args: &[u64; 5]) -> i64 {
 }
 
 fn sys_open_file(args: &[u64; 5]) -> i64 {
-    let file_name = args[0] as *const u8;
-    let mode = args[1] as u32;
+    let path = {
+        let path = args[0] as *const u8;
+        let len = args[1] as usize;
+        unsafe { core::slice::from_raw_parts(path, len) }
+    };
 
-    // processに登録的な
-    // 一旦return 0
-    return 0;
+    let mode = args[2] as u8;
+
+    let mut current_process = CURRENT_PROCESS.lock();
+
+    let Some(proc) = current_process.as_mut() else {
+        return -1;
+    };
+
+    match proc.open_file(path, mode) {
+        Ok(handle) => handle,
+        Err(_) => -1,
+    }
 }
 
 pub fn syscall_handler(op: u64, args: &[u64; 5]) -> u64 {

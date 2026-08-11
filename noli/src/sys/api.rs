@@ -71,4 +71,8 @@ pub trait SystemApi {
     fn open_easy_tcp_server(_port: u16) -> i64 {
         unimplemented!()
     }
+
+    fn open_file(_path: &[u8], _fmode_t: u8) -> i64 {
+        unimplemented!()
+    }
 }

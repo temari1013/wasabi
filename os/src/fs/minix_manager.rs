@@ -72,9 +72,9 @@ impl MinixFs {
         inode.delete_dir_entry(&mut fs.image, file_path, fs.block_size)
     }
 
-    pub fn lookup_iter(file_path: &[u8] ) -> Result<u32> {
-          let mut global_fs = MINIX_FS.lock();
-          let fs = global_fs
+    pub fn lookup_iter(file_path: &[u8]) -> Result<u32> {
+        let mut global_fs = MINIX_FS.lock();
+        let fs = global_fs
             .as_mut()
             .ok_or(Failed("Minix filesystem is not initialized"))?;
         let inode = minix3_inode::new(0);

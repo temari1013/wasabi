@@ -43,8 +43,9 @@ pub struct ProcessContext {
     exited: Rc<AtomicBool>,
     exit_code: Rc<AtomicI64>,
     tcp_sockets: BTreeMap<i64, Rc<TcpSocket>>,
-    files: BTreeMap<i64, Rc<File>>,
     next_tcp_socket_handle: i64,
+    files: BTreeMap<i64, Rc<File>>,
+    next_file_handle: i64,
 }
 impl ProcessContext {
     pub fn new(
@@ -91,12 +92,26 @@ impl ProcessContext {
     pub fn args_region_start_addr(&self) -> Option<usize> {
         self.args_region.as_ref().map(|ar| ar.range().start())
     }
-    pub fn handle_file(&mut self) -> Result<i64> {
-        return Ok(0);
+
+    pub fn file(&self, handle: i64) -> Option<Rc<File>> {
+        self.files.get(&handle).cloned()
     }
-    pub fn open_file(&mut self) -> Result<i64> {
-        let file = File::open();
-        self.handle_file()
+
+    pub fn handle_file(&mut self, file: Rc<File>) -> Result<i64> {
+        for handle in core::cmp::max(0, self.next_file_handle)..=i64::MAX {
+            if let btree_map::Entry::Vacant(e) = self.files.entry(handle) {
+                e.insert(file);
+                self.next_file_handle = self.next_file_handle.wrapping_add(1);
+                assert!(handle >= 0);
+                return Ok(handle);
+            }
+        }
+        Err(Error::Failed("No more tcp_socket handle available"))
+    }
+
+    pub fn open_file(&mut self, path: &[u8], fmode_t: u8) -> Result<i64> {
+        let file = File::open(path, fmode_t, 0)?;
+        self.handle_file(file)
     }
 
     // Create a new tcp socket and issue a handle for it
@@ -175,6 +190,7 @@ impl Scheduler {
         unsafe { unchecked_load_context(to) };
         unreachable!("Nothing should come back here");
     }
+
     pub fn switch_process(&self) {
         let (from, to) = {
             // To make sure the lock is unlocked before the
