@@ -229,7 +229,6 @@ fn main() -> Result<()> {
     init_syscall();
 
     MinixFs::init()?;
-    MinixFs::show_directory_tree()?;
 
     run_tasks()?;
     Ok(())

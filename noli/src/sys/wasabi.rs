@@ -133,7 +133,7 @@ fn syscall_5(func: u64, arg1: u64, arg2: u64, arg3: u64, arg4: u64, arg5: u64) -
 pub struct Api;
 
 impl SystemApi for Api {
-     fn show_directory_tree() -> i64{
+    fn show_directory_tree() -> i64 {
         syscall_0(15) as i64
     }
     fn exit(code: u64) -> ! {
@@ -206,5 +206,13 @@ impl SystemApi for Api {
     fn read_from_tcp_socket(handle: i64, buf: &mut [u8]) -> i64 {
         syscall_3(10, handle as u64, buf.as_mut_ptr() as u64, buf.len() as u64) as i64
     }
-   
+    fn read_direct_file(path: &[u8], buf: &mut [u8]) -> i64 {
+        syscall_4(
+            13,
+            path.as_ptr() as u64,
+            path.len() as u64,
+            buf.as_mut_ptr() as u64,
+            buf.len() as u64,
+        ) as i64
+    }
 }

@@ -10,6 +10,7 @@ use alloc::rc::Rc;
 use alloc::vec::Vec;
 // プロセスに割り当てられる開かれたファイルの構造体
 pub struct File {
+    pub count: u8,
     pub path: Vec<u8>,
     pub fmode_t: u8,
     pub inode_num: u32,
@@ -18,6 +19,7 @@ pub struct File {
 impl File {
     pub fn new() -> File {
         File {
+            count: 0,
             path: Vec::new(),
             fmode_t: 0,
             inode_num: 0,

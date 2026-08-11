@@ -1,6 +1,7 @@
 use crate::boot_info::BootInfo;
 use crate::error;
 use crate::executor::block_on_and_schedule;
+use crate::fs::minix_manager::MinixFs;
 use crate::info;
 use crate::input::InputManager;
 use crate::net::dns::query_dns;
@@ -12,8 +13,9 @@ use crate::process::CURRENT_PROCESS;
 use crate::x86_64::syscall::return_to_os;
 use crate::x86_64::syscall::write_exit_reason;
 use crate::x86_64::syscall::write_return_value;
-use crate::fs::minix_manager::MinixFs;
 use core::ptr::write_volatile;
+use core::unimplemented;
+use noli::args;
 use noli::bitmap::bitmap_draw_point;
 use noli::net::IpV4Addr;
 use sabi::MouseEvent;
@@ -273,11 +275,42 @@ fn sys_open_file(args: &[u64; 5]) -> i64 {
     }
 }
 
-fn sys_show_directory_tree() -> i64{
+// 引数: filepath 関数自体の戻り値: 読み書きしたデータ量
+fn sys_direct_read(args: &[u64; 5]) -> i64 {
+    // 本来的にはfd(的な要素であるhandleから取得したいが....)
+    // 今回はパス以外でアクセスされることはないのでパスでアクセスする
+
+    let path = {
+        let path = args[0] as *const u8;
+        let len = args[1] as usize;
+        unsafe { core::slice::from_raw_parts(path, len) }
+    };
+
+    let buf = {
+        let buf = args[2] as *mut u8;
+        let len = args[3] as usize;
+        unsafe { core::slice::from_raw_parts_mut(buf, len) }
+    };
+
+    let data = match MinixFs::read(path) {
+        Ok(data) => data,
+        Err(_) => return -1,
+    };
+    let bytes_read = core::cmp::min(data.len(), buf.len());
+    buf[..bytes_read].copy_from_slice(&data[..bytes_read]);
+
+    bytes_read as i64
+}
+
+fn sys_direct_wriite() {
+    unimplemented!()
+}
+
+fn sys_show_directory_tree() -> i64 {
     // TODO : MinixFSに直接は依存させたくないので今後真面目にlsを実装してこのコマンドは削除する
     let _ = MinixFs::show_directory_tree();
     return 0;
-} 
+}
 
 pub fn syscall_handler(op: u64, args: &[u64; 5]) -> u64 {
     match op {
@@ -294,6 +327,7 @@ pub fn syscall_handler(op: u64, args: &[u64; 5]) -> u64 {
         10 => sys_tcp_read(args) as u64,
         11 => sys_open_easy_tcp_server(args) as u64,
         12 => sys_open_file(args) as u64,
+        13 => sys_direct_read(args) as u64,
         15 => sys_show_directory_tree() as u64,
         op => {
             println!("syscall: unimplemented syscall: {}", op);

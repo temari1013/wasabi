@@ -78,6 +78,10 @@ pub trait SystemApi {
         unimplemented!()
     }
 
+    fn read_direct_file(_path: &[u8], _buf: &mut [u8]) -> i64 {
+        unimplemented!()
+    }
+
     fn show_directory_tree() -> i64 {
         unimplemented!()
     }

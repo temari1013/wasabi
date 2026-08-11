@@ -80,4 +80,22 @@ impl MinixFs {
         let inode = minix3_inode::new(0);
         inode.lookup_iter(file_path, &mut fs.image, fs.block_size)
     }
+
+     pub fn mkdir(file_path: &[u8]) -> Result<u32> {
+        let mut global_fs = MINIX_FS.lock();
+        let fs = global_fs
+            .as_mut()
+            .ok_or(Failed("Minix filesystem is not initialized"))?;
+        let inode = minix3_inode::new(0);
+        inode.mkdir(&mut fs.image, file_path , fs.block_size)
+    }
+
+    pub fn create_file(file_path: &[u8]) -> Result<u32> {
+        let mut global_fs = MINIX_FS.lock();
+        let fs = global_fs
+            .as_mut()
+            .ok_or(Failed("Minix filesystem is not initialized"))?;
+        let inode = minix3_inode::new(0);
+        inode.create_file(&mut fs.image,fs.block_size, file_path)
+    }
 }
