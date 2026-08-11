@@ -38,7 +38,7 @@ impl MinixFs {
             .ok_or(Failed("Minix filesystem is not initialized"))?;
         let root_inode = minix3_inode::new(0);
 
-        root_inode.show_directry_tree(&mut fs.image, fs.block_size)
+        root_inode.show_directory_tree(&mut fs.image, fs.block_size)
     }
 
     pub fn read(file_path: &[u8]) -> Result<Vec<u8>> {

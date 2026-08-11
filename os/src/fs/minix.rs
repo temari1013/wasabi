@@ -530,7 +530,7 @@ impl minix3_inode {
         Ok(())
     }
 
-    pub fn show_directry_tree(&self, minix_img: &mut [u8], block_size: usize) -> Result<()> {
+    pub fn show_directory_tree(&self, minix_img: &mut [u8], block_size: usize) -> Result<()> {
         info!("Current function: {}", function_name!());
         info!("/");
         self.print_tree(minix_img, block_size, 1, 1)?;
@@ -559,7 +559,7 @@ impl minix3_inode {
         if (inode.i_mode & 0x4000) != 0 {
             // ディレクトリであれば中身が空でないと消去できない
             if inode.i_size != 128 {
-                return Err(Failed("directry is not empty"));
+                return Err(Failed("directory is not empty"));
             }
         }
 

@@ -1,3 +1,5 @@
+use core::unimplemented;
+
 pub use sabi::MouseEvent;
 pub use sabi::RawIpV4Addr;
 
@@ -73,6 +75,10 @@ pub trait SystemApi {
     }
 
     fn open_file(_path: &[u8], _fmode_t: u8) -> i64 {
+        unimplemented!()
+    }
+
+    fn show_directory_tree() -> i64 {
         unimplemented!()
     }
 }
