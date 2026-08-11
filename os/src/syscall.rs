@@ -276,7 +276,7 @@ fn sys_open_file(args: &[u64; 5]) -> i64 {
 }
 
 // 引数: filepath 関数自体の戻り値: 読み書きしたデータ量
-fn sys_direct_read(args: &[u64; 5]) -> i64 {
+fn sys_all_read(args: &[u64; 5]) -> i64 {
     // 本来的にはfd(的な要素であるhandleから取得したいが....)
     // 今回はパス以外でアクセスされることはないのでパスでアクセスする
 
@@ -302,14 +302,22 @@ fn sys_direct_read(args: &[u64; 5]) -> i64 {
     bytes_read as i64
 }
 
-fn sys_direct_wriite(args: &[u64; 5]) {
+fn sys_all_write(args: &[u64; 5]) -> i64{
      let path = {
         let path = args[0] as *const u8;
         let len = args[1] as usize;
         unsafe { core::slice::from_raw_parts(path, len) }
     };
-
-    
+    let mut data_len = 0 ;
+    let data = {
+        let data = args[2] as *const u8;
+     data_len = args[3] as usize;
+        unsafe { core::slice::from_raw_parts(data, data_len) }
+    };
+     let _ = match MinixFs::write(path , data) {
+        Ok(()) => return data_len as i64, 
+        Err(_) => return -1,
+    };
 }
 
 
@@ -334,7 +342,8 @@ pub fn syscall_handler(op: u64, args: &[u64; 5]) -> u64 {
         10 => sys_tcp_read(args) as u64,
         11 => sys_open_easy_tcp_server(args) as u64,
         12 => sys_open_file(args) as u64,
-        13 => sys_direct_read(args) as u64,
+        13 => sys_all_read(args) as u64,
+        14 => sys_all_write(args) as u64, 
         15 => sys_show_directory_tree() as u64,
         op => {
             println!("syscall: unimplemented syscall: {}", op);
