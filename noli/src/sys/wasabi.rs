@@ -134,7 +134,7 @@ pub struct Api;
 
 impl SystemApi for Api {
      fn show_directory_tree() -> i64{
-        syscall_0(15) as i64;
+        syscall_0(15) as i64
     }
     fn exit(code: u64) -> ! {
         syscall_1(0, code);

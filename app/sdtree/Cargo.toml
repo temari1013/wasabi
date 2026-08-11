@@ -1,5 +1,5 @@
 [package]
-name = "show_directory_tree"
+name = "sdtree"
 version = "0.1.0"
 edition = "2021"
 
