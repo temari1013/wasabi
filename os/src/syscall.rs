@@ -249,6 +249,15 @@ fn sys_open_easy_tcp_server(args: &[u64; 5]) -> i64 {
     return handle;
 }
 
+fn sys_open_file(args: &[u64; 5]) -> i64 {
+    let file_name = args[0] as *const u8;
+    let mode = args[1] as u32;
+
+    // processに登録的な
+    // 一旦return 0
+    return 0;
+}
+
 pub fn syscall_handler(op: u64, args: &[u64; 5]) -> u64 {
     match op {
         0 => sys_exit(args),
@@ -263,7 +272,7 @@ pub fn syscall_handler(op: u64, args: &[u64; 5]) -> u64 {
         9 => sys_tcp_write(args) as u64,
         10 => sys_tcp_read(args) as u64,
         11 => sys_open_easy_tcp_server(args) as u64,
-
+        12 => sys_open_file(args) as u64,
         op => {
             println!("syscall: unimplemented syscall: {}", op);
             // Return u64::MAX here as it may be the "most unexpected value" that can crash the

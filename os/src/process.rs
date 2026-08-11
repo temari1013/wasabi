@@ -2,6 +2,7 @@ extern crate alloc;
 
 use crate::error::Error;
 use crate::error::Result;
+use crate::fs::fs_minix::File;
 use crate::memory::ContiguousPhysicalMemoryPages;
 use crate::mutex::Mutex;
 use crate::net::manager::Network;
@@ -42,6 +43,7 @@ pub struct ProcessContext {
     exited: Rc<AtomicBool>,
     exit_code: Rc<AtomicI64>,
     tcp_sockets: BTreeMap<i64, Rc<TcpSocket>>,
+    files: BTreeMap<i64, Rc<File>>,
     next_tcp_socket_handle: i64,
 }
 impl ProcessContext {
@@ -89,12 +91,21 @@ impl ProcessContext {
     pub fn args_region_start_addr(&self) -> Option<usize> {
         self.args_region.as_ref().map(|ar| ar.range().start())
     }
+    pub fn handle_file(&mut self) -> Result<i64> {
+        return Ok(0);
+    }
+    pub fn open_file(&mut self) -> Result<i64> {
+        let file = File::open();
+        self.handle_file()
+    }
+
     // Create a new tcp socket and issue a handle for it
     pub fn create_tcp_socket(&mut self, ip: IpV4Addr, port: u16) -> Result<i64> {
         let network = Network::take();
         let sock = network.open_tcp_socket(ip, port)?;
         self.handle_tcp_socket(sock)
     }
+
     pub fn tcp_socket(&self, handle: i64) -> Option<Rc<TcpSocket>> {
         self.tcp_sockets.get(&handle).cloned()
     }
