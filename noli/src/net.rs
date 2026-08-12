@@ -131,6 +131,7 @@ impl TcpStream {
             }
         }
     }
+
     // streamのr/w実装を流用したい
     pub fn open_easy_tcp_server(port: u16) -> Result<TcpStream> {
         let handle = Api::open_easy_tcp_server(port);

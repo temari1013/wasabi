@@ -97,7 +97,7 @@ fn handle_get(path: &str, stream: &mut TcpStream) -> Result<()> {
         Ok(())
     } else {
         Api::write_string("file sending ... \n");
-        let mut buffer = [0u8; 1024];
+        let mut buffer = [0u8; 2048];
         let bytes_read = Api::read_all_file(path.as_bytes(), &mut buffer);
 
         if bytes_read > 0 {
