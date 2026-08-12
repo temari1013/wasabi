@@ -17,7 +17,7 @@ impl MinixFs {
         let mut global_fs = MINIX_FS.lock();
 
         const BLOCK_SIZE: usize = 1024;
-        let size = 512 * 16;
+        let size = 512 * 32;
         let mut mem = vec![0u8; size];
 
         init_minixfs(&mut mem, BLOCK_SIZE);
