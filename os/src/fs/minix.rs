@@ -18,6 +18,7 @@ macro_rules! function_name {
 }
 pub type c_char = u8;
 pub const MINIX_MAX_FILENAME: usize = 60;
+const MINIX_MAX_FILE_SIZE: u32 = 0x7fff_ffff;
 const MINIX_DIRECTORY_MODE: u16 = 0o040755;
 const MINIX_REGULAR_FILE_MODE: u16 = 0o100644;
 
@@ -62,7 +63,7 @@ impl minix3_super_block {
             s_firstdatazone: 0,
             s_log_zone_size: 0,
             s_pad1: 0,
-            s_max_size: 0,
+            s_max_size: MINIX_MAX_FILE_SIZE,
             s_zones: 0,
             s_magic: 0x4D5A,
             s_pad2: 0,
@@ -1097,6 +1098,7 @@ mod test {
             "s_firstdatazone should be greater than 0"
         );
         assert!(super_block.s_zones > 0, "s_zones should be greater than 0");
+        assert_eq!(super_block.s_max_size, MINIX_MAX_FILE_SIZE);
 
         // inode, zoneのbitmapの[0]と[1]が1になっていることを確認する
         let imap_start_block = super_block.imap_start_block();
