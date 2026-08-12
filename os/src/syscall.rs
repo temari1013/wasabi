@@ -328,9 +328,7 @@ fn sys_show_directory_tree() -> i64 {
 
 // MinixFSのイメージ全体をユーザー側のバッファへコピーする。
 fn sys_fs_img(args: &[u64; 5]) -> i64 {
-    let buf = unsafe {
-        core::slice::from_raw_parts_mut(args[0] as *mut u8, args[1] as usize)
-    };
+    let buf = unsafe { core::slice::from_raw_parts_mut(args[0] as *mut u8, args[1] as usize) };
 
     match MinixFs::fs_img(buf) {
         Ok(()) => buf.len() as i64,

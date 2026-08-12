@@ -82,7 +82,7 @@ pub trait SystemApi {
         unimplemented!()
     }
 
-    fn write_all_file(_path: &[u8], _data: &mut [u8]) -> i64 {
+    fn write_all_file(_path: &[u8], _data: &[u8]) -> i64 {
         unimplemented!()
     }
 

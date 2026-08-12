@@ -7,9 +7,10 @@ use noli::prelude::*;
 fn main() -> Result<()> {
     Api::write_string("show directory tree demo!\n");
     Api::show_directory_tree();
+    Api::write_all_file(b"/test2.txt", b"write data test");
 
     let mut buffer = [0u8; 1024];
-    let bytes_read = Api::read_all_file(b"/test.txt", &mut buffer);
+    let bytes_read = Api::read_all_file(b"/test2.txt", &mut buffer);
 
     if bytes_read < 0 {
         return Err(Error::Failed("read_all_file failed"));

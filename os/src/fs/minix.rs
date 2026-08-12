@@ -236,16 +236,16 @@ impl minix3_inode {
         info!("Current function: {}", function_name!());
         let mut inode_num = 0;
         let super_block = get_super_block(minix_img, block_size);
-        let max_bits = (super_block.s_imap_blocks as usize) * block_size * 8;
 
-        // inode番号0は無効なので1から見る
-        for i in 1..max_bits {
-            let bit_index = i - 1;
+        // Minixのimapではbit 0は予約され、bit Nがinode Nに対応する。
+        // スーパーブロックで宣言されたinode数を超えて割り当てない。
+        for candidate in 1..=super_block.s_ninodes as usize {
+            let bit_index = candidate;
             let byte_idx = (super_block.imap_start_block() * block_size) + (bit_index / 8);
             let bit_idx = bit_index % 8;
 
             if (minix_img[byte_idx] & (1u8 << bit_idx)) == 0 {
-                inode_num = i;
+                inode_num = candidate;
                 info!("inode found. inode_num : {}\n", inode_num);
                 change_i_bitmap(minix_img, block_size, bit_index, 1);
                 break;
@@ -580,7 +580,8 @@ impl minix3_inode {
         }
         // imapの更新
         let imap_start_block = super_block.imap_start_block();
-        let bit_index = inode_num as usize - 1; // inode番号は1から始まるので、0-basedに変換
+        // Minixのimapではbit 0は予約され、bit Nがinode Nに対応する。
+        let bit_index = inode_num as usize;
         let byte_idx = (imap_start_block * block_size) + (bit_index / 8);
         let bit_idx = bit_index % 8;
         minix_img[byte_idx] &= !(1u8 << bit_idx);
@@ -644,7 +645,7 @@ pub fn init_minixfs(mem: &mut [u8], block_size: usize) {
 
     // zoneに何ブロック使えるかを考える
     let total_blocks = fs_size / block_size as usize;
-    // inode比率は8個に一個とする
+    // inode比率は8ブロックに1個とする
     let s_ninodes = (total_blocks / 8) as u32;
 
     let inodes_per_block = block_size as u32 / 64;
@@ -774,11 +775,18 @@ mod test {
         let root_inode_ptr = get_root_inode_ptr_mut(img_ptr, BLOCK_SIZE);
         let root_inode = unsafe { read_unaligned(root_inode_ptr) };
 
-        root_inode.create_file(&mut minix_img, BLOCK_SIZE, b"dir/newfile.txt");
+        root_inode
+            .create_file(&mut minix_img, BLOCK_SIZE, b"dir/newfile.txt")
+            .unwrap();
 
         // 確認すべきは親ディレクトリのzone[0]にnewfile.
         // txtがファイル名のディレクトリエントリがあるかどうか
-        let offset = 48 * BLOCK_SIZE;
+        let dir_inode_num = root_inode.lookup(b"dir", &minix_img, BLOCK_SIZE).unwrap();
+        let dir_inode_ptr = root_inode
+            .get_inode(dir_inode_num, BLOCK_SIZE, &mut minix_img)
+            .unwrap();
+        let dir_inode = unsafe { read_unaligned(dir_inode_ptr) };
+        let offset = dir_inode.i_zone[0] as usize * BLOCK_SIZE;
 
         let entries_count = BLOCK_SIZE / core::mem::size_of::<minix3_dir_entry>();
         let mut assertion = false;
@@ -789,8 +797,6 @@ mod test {
             let len = dir_entry.name.iter().position(|&c| c == 0).unwrap_or(60);
             let entry_name = &dir_entry.name[..len];
             if entry_name == b"newfile.txt" {
-                // TODO : 紐づいているinodeを確認する
-                let inode = dir_entry.inode;
                 assertion = true;
                 break;
             }
@@ -828,10 +834,22 @@ mod test {
         let root_inode_ptr = get_root_inode_ptr_mut(img_ptr, BLOCK_SIZE);
         let root_inode = unsafe { read_unaligned(root_inode_ptr) };
 
-        root_inode.mkdir(&mut minix_img, b"dir/nested/new_dir", BLOCK_SIZE);
+        root_inode
+            .mkdir(&mut minix_img, b"dir/nested/new_dir", BLOCK_SIZE)
+            .unwrap();
 
         // 親ディレクトリに作成した名前のディレクトリエントリが配置されているかどうかとinodeの値の検証
-        let offset = 49 * BLOCK_SIZE;
+        let dir_inode_num = root_inode.lookup(b"dir", &minix_img, BLOCK_SIZE).unwrap();
+        let dir_inode_ptr = root_inode
+            .get_inode(dir_inode_num, BLOCK_SIZE, &mut minix_img)
+            .unwrap();
+        let dir_inode = unsafe { read_unaligned(dir_inode_ptr) };
+        let nested_inode_num = dir_inode.lookup(b"nested", &minix_img, BLOCK_SIZE).unwrap();
+        let nested_inode_ptr = root_inode
+            .get_inode(nested_inode_num, BLOCK_SIZE, &mut minix_img)
+            .unwrap();
+        let nested_inode = unsafe { read_unaligned(nested_inode_ptr) };
+        let offset = nested_inode.i_zone[0] as usize * BLOCK_SIZE;
 
         let entries_count = BLOCK_SIZE / core::mem::size_of::<minix3_dir_entry>();
         let mut assertion = false;
@@ -857,15 +875,34 @@ mod test {
         let root_inode_ptr = get_root_inode_ptr_mut(img_ptr, BLOCK_SIZE);
         let root_inode = unsafe { read_unaligned(root_inode_ptr) };
 
-        root_inode.write(
-            &mut minix_img,
-            b"/dir/nested/syouyu.txt",
-            BLOCK_SIZE,
-            b"syouyu",
-        );
+        root_inode
+            .write(
+                &mut minix_img,
+                b"/dir/nested/syouyu.txt",
+                BLOCK_SIZE,
+                b"syouyu",
+            )
+            .unwrap();
 
         // Verify
-        let offset = 52 * BLOCK_SIZE;
+        let dir_inode_num = root_inode.lookup(b"dir", &minix_img, BLOCK_SIZE).unwrap();
+        let dir_inode_ptr = root_inode
+            .get_inode(dir_inode_num, BLOCK_SIZE, &mut minix_img)
+            .unwrap();
+        let dir_inode = unsafe { read_unaligned(dir_inode_ptr) };
+        let nested_inode_num = dir_inode.lookup(b"nested", &minix_img, BLOCK_SIZE).unwrap();
+        let nested_inode_ptr = root_inode
+            .get_inode(nested_inode_num, BLOCK_SIZE, &mut minix_img)
+            .unwrap();
+        let nested_inode = unsafe { read_unaligned(nested_inode_ptr) };
+        let file_inode_num = nested_inode
+            .lookup(b"syouyu.txt", &minix_img, BLOCK_SIZE)
+            .unwrap();
+        let file_inode_ptr = root_inode
+            .get_inode(file_inode_num, BLOCK_SIZE, &mut minix_img)
+            .unwrap();
+        let file_inode = unsafe { read_unaligned(file_inode_ptr) };
+        let offset = file_inode.i_zone[0] as usize * BLOCK_SIZE;
         let written_data = &minix_img[offset..offset + 6];
 
         assert_eq!(written_data, b"syouyu")
@@ -912,8 +949,22 @@ mod test {
         let root_inode_ptr = get_root_inode_ptr_mut(img_ptr, BLOCK_SIZE);
         let root_inode = unsafe { read_unaligned(root_inode_ptr) };
 
-        // 自身のinodeのビットマップが１
-        let inode_num = 3;
+        // 対象ファイルのinode番号とzone番号をディレクトリから取得する
+        let dir_inode_num = root_inode.lookup(b"dir", &minix_img, BLOCK_SIZE).unwrap();
+        let dir_inode_ptr = root_inode
+            .get_inode(dir_inode_num, BLOCK_SIZE, &mut minix_img)
+            .unwrap();
+        let dir_inode = unsafe { read_unaligned(dir_inode_ptr) };
+        let inode_num = dir_inode
+            .lookup(b"test.txt", &minix_img, BLOCK_SIZE)
+            .unwrap();
+        let file_inode_ptr = root_inode
+            .get_inode(inode_num, BLOCK_SIZE, &mut minix_img)
+            .unwrap();
+        let file_inode = unsafe { read_unaligned(file_inode_ptr) };
+        let zone_num = file_inode.i_zone[0] as usize;
+
+        // 自身のinodeのビットマップが1
         let inode_byte_offset = (inode_num / 8) as usize;
         let inode_bit_offset = inode_num % 8;
 
@@ -924,9 +975,9 @@ mod test {
 
         assert!(is_inode_used_before, "inode bitmap is not set");
 
-        // test.txtの存在するzone_num = 50 のビットマップが1
+        // test.txtの使用するzoneのビットマップが1
         let firstdatazone = super_block.s_firstdatazone as usize;
-        let zmap_bit_index = 50 - firstdatazone + 1;
+        let zmap_bit_index = zone_num - firstdatazone + 1;
 
         let zmap_base = super_block.zmap_start_block() as usize * BLOCK_SIZE;
         let zmap_byte_offset = zmap_bit_index / 8;
@@ -949,7 +1000,7 @@ mod test {
         assert!(!is_inode_used_after, "inode bitmap is not cleared");
 
         // 親ディレクトリエントリのzone[0]に自身が存在しない
-        let parent_dir_offset = 2 * BLOCK_SIZE;
+        let parent_dir_offset = dir_inode.i_zone[0] as usize * BLOCK_SIZE;
 
         let entries_count = BLOCK_SIZE / core::mem::size_of::<minix3_dir_entry>();
         let mut entry_exists = false;
@@ -967,7 +1018,7 @@ mod test {
         }
         assert!(entry_exists == false, "directory entry still exists");
 
-        // test.txtの存在するzone_num = 50 のビットマップが0
+        // test.txtが使用していたzoneのビットマップが0
         let target_zmap_byte_after = minix_img[zmap_base + zmap_byte_offset];
         let is_zone_used_after = (target_zmap_byte_after & (1 << zmap_bit_offset)) != 0;
         assert!(!is_zone_used_after, "zone bitmap is not cleared");

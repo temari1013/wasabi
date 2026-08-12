@@ -220,15 +220,13 @@ impl SystemApi for Api {
         ) as i64
     }
 
-    fn write_all_file(path: &[u8], data: &mut [u8]) -> i64 {
+    fn write_all_file(path: &[u8], data: &[u8]) -> i64 {
         syscall_4(
             14,
             path.as_ptr() as u64,
             path.len() as u64,
-            data.as_mut_ptr() as u64,
+            data.as_ptr() as u64,
             data.len() as u64,
         ) as i64
     }
-
-   
 }

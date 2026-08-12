@@ -35,7 +35,7 @@ fn handle_get(path: &str, stream: &mut TcpStream) -> Result<()> {
     if path == "/proc/fs.img" {
         Api::write_string("proc/fs.img sending ... \n");
 
-        let mut buf = [0u8; 512 * 32];
+        let mut buf = [0u8; 512 * 64];
         let image_size = Api::fs_img(&mut buf);
         if image_size < 0 {
             return Err(Error::Failed("Failed to read MinixFS image"));
