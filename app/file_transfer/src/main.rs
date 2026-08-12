@@ -35,6 +35,7 @@ fn handle_get(path: &str, stream: &mut TcpStream) -> Result<()> {
     if path == "/proc/fs.img" {
         Api::write_string("proc/fs.img sending ... \n");
 
+        let mut message = [0u8; 21];
         let mut value = 512 * 32 as u64;
 
         let mut reversed_digits = [0u8; 20];
@@ -48,10 +49,13 @@ fn handle_get(path: &str, stream: &mut TcpStream) -> Result<()> {
             message[i] = reversed_digits[digit_count - i - 1];
         }
         message[digit_count] = b'\n';
-
         stream.write(&message[..digit_count + 1])?;
 
-        
+        // ここからデータの読み出し
+        let mut buf = [0u8; 512 * 32];
+        Api::fs_img(&mut buf);
+        stream.write(&buf);
+
         Ok(())
     } else {
         Api::write_string("file sending ... \n");

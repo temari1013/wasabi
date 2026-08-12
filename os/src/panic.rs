@@ -11,9 +11,9 @@ use crate::debug;
 fn panic(info: &PanicInfo) -> ! {
     let mut serial_writer = SerialPort::default();
     writeln!(serial_writer, "[PANIC] start").unwrap();
-    dump_stack();
+    // dump_stack();
     writeln!(serial_writer, "[PANIC] {info:?}").unwrap();
-    println!("[PANIC] {info:?}");
+    // println!("[PANIC] {info:?}");
     #[cfg(not(test))]
     crate::x86_64::rest_in_peace();
     #[cfg(test)]

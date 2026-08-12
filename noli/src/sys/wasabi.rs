@@ -193,6 +193,10 @@ impl SystemApi for Api {
         syscall_1(11, port as u64) as i64
     }
 
+      fn fs_img(buf: &mut [u8]) -> i64 {
+        syscall_2(16,  buf.as_mut_ptr() as u64 , 512*32) as i64
+    }
+
     fn open_file(path: &[u8], fmode_t: u8) -> i64 {
         syscall_3(12, path.as_ptr() as u64, path.len() as u64, fmode_t as u64) as i64
     }
@@ -225,4 +229,6 @@ impl SystemApi for Api {
             data.len() as u64,
         ) as i64
     }
+
+   
 }

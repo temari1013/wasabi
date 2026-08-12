@@ -104,8 +104,8 @@ impl MinixFs {
             let fs = global_fs
             .as_mut()
             .ok_or(Failed("Minix filesystem is not initialized"))?;
-        if (buffer.len() <fs.image.len()) {
-            Failed("too short buffer");
+        if buffer.len() != fs.image.len() {
+          return Err(  Failed("too short buffer"));
         }
         buffer.copy_from_slice(fs.image.as_slice());
         Ok(())
