@@ -326,20 +326,16 @@ fn sys_show_directory_tree() -> i64 {
     return 0;
 }
 
-
-// 今回の実装においてはfsのバッファは十分小さいので、非常に大きなバッファを渡してそのまま書き込むという実装を一度試す
+// MinixFSのイメージ全体をユーザー側のバッファへコピーする。
 fn sys_fs_img(args: &[u64; 5]) -> i64 {
-     let buf = unsafe {
-          core::slice::from_raw_parts_mut(
-              args[0] as *mut u8,
-              args[1] as usize,
-          )
-      };
-      
-      match MinixFs::fs_img(buf) {
-          Ok(()) => buf.len() as i64,
-          Err(_) => -1,
-      }
+    let buf = unsafe {
+        core::slice::from_raw_parts_mut(args[0] as *mut u8, args[1] as usize)
+    };
+
+    match MinixFs::fs_img(buf) {
+        Ok(()) => buf.len() as i64,
+        Err(_) => -1,
+    }
 }
 
 pub fn syscall_handler(op: u64, args: &[u64; 5]) -> u64 {

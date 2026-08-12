@@ -90,7 +90,7 @@ pub trait SystemApi {
         unimplemented!()
     }
 
-    fn fs_img(_buf: &mut[u8]) -> i64 {
+    fn fs_img(_buf: &mut [u8]) -> i64 {
         unimplemented!()
     }
 }

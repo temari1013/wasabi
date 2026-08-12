@@ -35,8 +35,14 @@ fn handle_get(path: &str, stream: &mut TcpStream) -> Result<()> {
     if path == "/proc/fs.img" {
         Api::write_string("proc/fs.img sending ... \n");
 
+        let mut buf = [0u8; 512 * 32];
+        let image_size = Api::fs_img(&mut buf);
+        if image_size < 0 {
+            return Err(Error::Failed("Failed to read MinixFS image"));
+        }
+
         let mut message = [0u8; 21];
-        let mut value = 512 * 32 as u64;
+        let mut value = image_size as u64;
 
         let mut reversed_digits = [0u8; 20];
         let mut digit_count = 0;
@@ -51,10 +57,12 @@ fn handle_get(path: &str, stream: &mut TcpStream) -> Result<()> {
         message[digit_count] = b'\n';
         stream.write(&message[..digit_count + 1])?;
 
-        // ここからデータの読み出し
-        let mut buf = [0u8; 512 * 32];
-        Api::fs_img(&mut buf);
-        stream.write(&buf);
+        for chunk in buf[..image_size as usize].chunks(1024) {
+            let bytes_written = stream.write(chunk)?;
+            if bytes_written != chunk.len() {
+                return Err(Error::Failed("Incomplete MinixFS image write"));
+            }
+        }
 
         Ok(())
     } else {
