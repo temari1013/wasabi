@@ -40,8 +40,7 @@ fn handle_get(path: &str, stream: &mut TcpStream) -> Result<()> {
     let bytes_read = Api::read_all_file(path.as_bytes(), &mut buffer);
 
     if bytes_read > 0 {
-        let mut message = [0u8; 24];
-        message[..3].copy_from_slice(b"OK ");
+        let mut message = [0u8; 21];
 
         let mut value = bytes_read as u64;
         let mut reversed_digits = [0u8; 20];
@@ -52,11 +51,11 @@ fn handle_get(path: &str, stream: &mut TcpStream) -> Result<()> {
             value /= 10;
         }
         for i in 0..digit_count {
-            message[3 + i] = reversed_digits[digit_count - i - 1];
+            message[i] = reversed_digits[digit_count - i - 1];
         }
-        message[3 + digit_count] = b'\n';
+        message[digit_count] = b'\n';
 
-        stream.write(&message[..4 + digit_count])?;
+        stream.write(&message[..digit_count + 1])?;
         stream.write(&buffer[..bytes_read as usize])?;
     } else {
         Api::write_string("**** read file faile\n");
