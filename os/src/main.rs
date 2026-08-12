@@ -233,8 +233,6 @@ fn main() -> Result<()> {
     MinixFs::create_file(b"/test.txt")?;
     MinixFs::write(b"/test.txt", b"power pc festival")?;
 
-   
-
     run_tasks()?;
     Ok(())
 }
