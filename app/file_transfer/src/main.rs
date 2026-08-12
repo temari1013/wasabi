@@ -1,30 +1,27 @@
 #![no_std]
 #![cfg_attr(not(target_os = "linux"), no_main)]
 
-use noli::net::TcpStream;
-use noli::prelude::*;
 use core::str;
 use noli::error::Error;
+use noli::net::TcpStream;
+use noli::prelude::*;
 use Api;
 
-
-
-fn handle_command(command: &str , stream: & mut TcpStream) -> Result<()> {
-    
+fn handle_command(command: &str, stream: &mut TcpStream) -> Result<()> {
     Api::write_string(command);
     let mut splitted_command = command.split_whitespace();
 
-   match splitted_command.next() {
+    match splitted_command.next() {
         Some("get") => {
             let path = splitted_command.next();
             match path {
-                Some(path) =>   handle_get(path , stream) , 
-                None => {      
+                Some(path) => handle_get(path, stream),
+                None => {
                     Api::write_string("**** empty path\n");
-                   Ok(())
-                },
+                    Ok(())
+                }
             }
-        } , 
+        }
         _ => {
             Api::write_string("**** invalid commnad\n");
             Ok(())
@@ -33,7 +30,6 @@ fn handle_command(command: &str , stream: & mut TcpStream) -> Result<()> {
 }
 
 fn handle_get(path: &str, stream: &mut TcpStream) -> Result<()> {
-   
     Api::write_string(" get request received\n");
 
     let mut buffer = [0u8; 1024];
@@ -82,7 +78,7 @@ fn main() -> Result<()> {
         }
 
         match str::from_utf8(&buf[..bytes_read]) {
-            Ok(command) => handle_command(command , & mut stream)?,
+            Ok(command) => handle_command(command, &mut stream)?,
             Err(_) => return Err(Error::Failed("Invalid UTF-8 sequence")),
         }
     }
