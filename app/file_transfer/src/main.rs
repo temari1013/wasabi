@@ -36,18 +36,20 @@ fn handle_command(command: &str, stream: &mut TcpStream) -> Result<()> {
             }
         }
         Some("put") => {
+            // TODO : splitted_comand.next(); に失敗したときの処理を詰める
             let path = splitted_command.next();
             let size = splitted_command.next();
-            match (path, size) {
-                (Some(path), Some(size)) => {
+            let data = splitted_command.next();
+            match (path, size , data) {
+                (Some(path), Some(size) , Some(data)) => {
                     let filesize: u32 = size
                         .parse()
                         .map_err(|_| Error::Failed("Invalid file size"))?;
-
-                    handle_put(path, filesize, stream)
+                    let data: &[u8] = data.as_bytes();
+                    handle_put(path, filesize, data, stream)
                 }
                 _ => {
-                    Api::write_string("path or size is empty in put request\n");
+                    Api::write_string("path or size or data is empty in put request\n");
                     Ok(())
                 }
             }
@@ -125,14 +127,15 @@ fn handle_get(path: &str, stream: &mut TcpStream) -> Result<()> {
     }
 }
 
-fn handle_put(path: &str, filesize: u32, stream: &mut TcpStream) -> Result<()> {
+fn handle_put(path: &str, filesize: u32,  data : &[u8] , stream: &mut TcpStream) -> Result<()> {
     Api::write_string("put request received\n");
 
      //  1.pathをsplitする
      let (parent , name ) = split_path_and_filename(path.as_bytes());
-     // 2. ファイルができる
+     // 2. ファイルを作成する
      Api::create_file(name);
-
+     // 3. データを書き込む
+     Api::write_all_file(name ,  data);
 
     Ok(())
 }
