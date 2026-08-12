@@ -336,6 +336,21 @@ fn sys_fs_img(args: &[u64; 5]) -> i64 {
     }
 }
 
+fn sys_create_file(args: &[u64; 5]) -> i64 {
+    // 指定されたファイル名でルート直下にファイルを作成する
+    let file_name = {
+        let file_name = args[0] as *const u8;
+        let len = args[1] as usize;
+        unsafe { core::slice::from_raw_parts(file_name, len) }
+    };
+
+      let _ = match MinixFs::create_file(file_name) {
+        Ok((_)) => 0,
+        Err(_) => return -1,
+    };
+    return 0;
+}
+
 pub fn syscall_handler(op: u64, args: &[u64; 5]) -> u64 {
     match op {
         0 => sys_exit(args),
@@ -355,6 +370,7 @@ pub fn syscall_handler(op: u64, args: &[u64; 5]) -> u64 {
         14 => sys_all_write(args) as u64,
         15 => sys_show_directory_tree() as u64,
         16 => sys_fs_img(args) as u64,
+        17 => sys_create_file(args) as u64,
         op => {
             println!("syscall: unimplemented syscall: {}", op);
             // Return u64::MAX here as it may be the "most unexpected value" that can crash the

@@ -93,4 +93,8 @@ pub trait SystemApi {
     fn fs_img(_buf: &mut [u8]) -> i64 {
         unimplemented!()
     }
+
+    fn create_file(_file_name: &[u8]) -> i64 {
+        unimplemented!()
+    }
 }
