@@ -269,7 +269,6 @@ fn sys_open_file(args: &[u64; 5]) -> i64 {
         return -1;
     };
 
-    
     match proc.open_file(path, mode) {
         Ok(handle) => handle,
         Err(_) => -1,

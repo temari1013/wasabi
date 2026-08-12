@@ -82,8 +82,6 @@ pub trait SystemApi {
         unimplemented!()
     }
 
-    
-
     fn write_all_file(_path: &[u8], _data: &mut [u8]) -> i64 {
         unimplemented!()
     }
@@ -91,6 +89,4 @@ pub trait SystemApi {
     fn show_directory_tree() -> i64 {
         unimplemented!()
     }
-
-    
 }
