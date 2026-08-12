@@ -344,7 +344,7 @@ fn sys_create_file(args: &[u64; 5]) -> i64 {
         unsafe { core::slice::from_raw_parts(file_name, len) }
     };
 
-      let _ = match MinixFs::create_file(file_name) {
+    let _ = match MinixFs::create_file(file_name) {
         Ok((_)) => 0,
         Err(_) => return -1,
     };

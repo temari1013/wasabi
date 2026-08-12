@@ -1098,7 +1098,8 @@ mod test {
             "s_firstdatazone should be greater than 0"
         );
         assert!(super_block.s_zones > 0, "s_zones should be greater than 0");
-        assert_eq!(super_block.s_max_size, MINIX_MAX_FILE_SIZE);
+        let max_size = super_block.s_max_size;
+        assert_eq!(max_size, MINIX_MAX_FILE_SIZE);
 
         // inode, zoneのbitmapの[0]と[1]が1になっていることを確認する
         let imap_start_block = super_block.imap_start_block();

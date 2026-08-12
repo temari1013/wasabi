@@ -7,7 +7,7 @@ use noli::prelude::*;
 fn main() -> Result<()> {
     Api::write_string("show directory tree demo!\n");
     Api::show_directory_tree();
-    
+
     Api::create_file(b"test3.txt");
     Api::write_all_file(b"/test3.txt", b"write data test3");
     let mut buffer = [0u8; 1024];

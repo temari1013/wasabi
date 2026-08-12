@@ -7,6 +7,19 @@ use noli::net::TcpStream;
 use noli::prelude::*;
 use Api;
 
+fn split_path_and_filename(file_path: &[u8]) -> (&[u8], &[u8]) {
+    let last_slash_idx = file_path.iter().rposition(|&c| c == b'/');
+
+    match last_slash_idx {
+        Some(idx) => {
+            let parent = if idx == 0 { b"/" } else { &file_path[..idx] };
+            let name = &file_path[idx + 1..];
+            (parent, name)
+        }
+        None => (b"/", file_path),
+    }
+}
+
 fn handle_command(command: &str, stream: &mut TcpStream) -> Result<()> {
     Api::write_string(command);
     let mut splitted_command = command.split_whitespace();
@@ -23,11 +36,18 @@ fn handle_command(command: &str, stream: &mut TcpStream) -> Result<()> {
             }
         }
         Some("put") => {
-              let path = splitted_command.next();
-               match path {
-                Some(path) => handle_put(path, stream),
-                None => {
-                    Api::write_string("**** path is empty in put request\n");
+            let path = splitted_command.next();
+            let size = splitted_command.next();
+            match (path, size) {
+                (Some(path), Some(size)) => {
+                    let filesize: u32 = size
+                        .parse()
+                        .map_err(|_| Error::Failed("Invalid file size"))?;
+
+                    handle_put(path, filesize, stream)
+                }
+                _ => {
+                    Api::write_string("path or size is empty in put request\n");
                     Ok(())
                 }
             }
@@ -105,7 +125,15 @@ fn handle_get(path: &str, stream: &mut TcpStream) -> Result<()> {
     }
 }
 
-fn handle_put(path: &str ,stream: &mut TcpStream) -> Result<()> {
+fn handle_put(path: &str, filesize: u32, stream: &mut TcpStream) -> Result<()> {
+    Api::write_string("put request received\n");
+
+     //  1.pathをsplitする
+     let (parent , name ) = split_path_and_filename(path.as_bytes());
+     // 2. ファイルができる
+     Api::create_file(name);
+
+
     Ok(())
 }
 
