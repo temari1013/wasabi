@@ -206,13 +206,23 @@ impl SystemApi for Api {
     fn read_from_tcp_socket(handle: i64, buf: &mut [u8]) -> i64 {
         syscall_3(10, handle as u64, buf.as_mut_ptr() as u64, buf.len() as u64) as i64
     }
-    fn read_direct_file(path: &[u8], buf: &mut [u8]) -> i64 {
+    fn read_all_file(path: &[u8], buf: &mut [u8]) -> i64 {
         syscall_4(
             13,
             path.as_ptr() as u64,
             path.len() as u64,
             buf.as_mut_ptr() as u64,
             buf.len() as u64,
+        ) as i64
+    }
+
+    fn write_all_file(path: &[u8], data: &mut [u8]) -> i64 {
+        syscall_4(
+            14,
+            path.as_ptr() as u64,
+            path.len() as u64,
+            data.as_mut_ptr() as u64,
+            data.len() as u64,
         ) as i64
     }
 }
