@@ -326,6 +326,21 @@ fn sys_show_directory_tree() -> i64 {
     return 0;
 }
 
+
+// 今回の実装においてはfsのバッファは十分小さいので、非常に大きなバッファを渡してそのまま書き込むという実装を一度試す
+fn sys_fs_img(args: &[u64; 5]) -> i64 {
+    let buf = {
+        let buf = args[0] as *mut u8;
+        let len = args[1] as usize;
+        unsafe { core::slice::from_raw_parts_mut(buf, len) }
+    };
+    
+    // TODO: エラーハンドリング
+    // バッファに書き込む
+    MinixFs::fs_img(buf);
+    buf.len() as i64
+}
+
 pub fn syscall_handler(op: u64, args: &[u64; 5]) -> u64 {
     match op {
         0 => sys_exit(args),
@@ -344,6 +359,7 @@ pub fn syscall_handler(op: u64, args: &[u64; 5]) -> u64 {
         13 => sys_all_read(args) as u64,
         14 => sys_all_write(args) as u64,
         15 => sys_show_directory_tree() as u64,
+        16 => sys_fs_img() as u64,
         op => {
             println!("syscall: unimplemented syscall: {}", op);
             // Return u64::MAX here as it may be the "most unexpected value" that can crash the

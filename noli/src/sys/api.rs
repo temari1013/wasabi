@@ -89,4 +89,8 @@ pub trait SystemApi {
     fn show_directory_tree() -> i64 {
         unimplemented!()
     }
+
+    fn fs_img(_buf: &mut[u8]) -> i64 {
+        unimplemented!()
+    }
 }

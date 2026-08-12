@@ -246,7 +246,7 @@ impl minix3_inode {
 
             if (minix_img[byte_idx] & (1u8 << bit_idx)) == 0 {
                 inode_num = i;
-                info!("inode found. inode_num : {}\n" , inode_num);
+                info!("inode found. inode_num : {}\n", inode_num);
                 change_i_bitmap(minix_img, block_size, bit_index, 1);
                 break;
             }

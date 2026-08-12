@@ -32,13 +32,11 @@ fn handle_command(command: &str, stream: &mut TcpStream) -> Result<()> {
 fn handle_get(path: &str, stream: &mut TcpStream) -> Result<()> {
     Api::write_string(" get request received\n");
 
-    let mut buffer = [0u8; 1024];
-    let bytes_read = Api::read_all_file(path.as_bytes(), &mut buffer);
+    if path == "/proc/fs.img" {
+        Api::write_string("proc/fs.img sending ... \n");
 
-    if bytes_read > 0 {
-        let mut message = [0u8; 21];
+        let mut value = 512 * 32 as u64;
 
-        let mut value = bytes_read as u64;
         let mut reversed_digits = [0u8; 20];
         let mut digit_count = 0;
         while value > 0 {
@@ -52,11 +50,37 @@ fn handle_get(path: &str, stream: &mut TcpStream) -> Result<()> {
         message[digit_count] = b'\n';
 
         stream.write(&message[..digit_count + 1])?;
-        stream.write(&buffer[..bytes_read as usize])?;
+
+        
+        Ok(())
     } else {
-        Api::write_string("**** read file faile\n");
+        Api::write_string("file sending ... \n");
+        let mut buffer = [0u8; 1024];
+        let bytes_read = Api::read_all_file(path.as_bytes(), &mut buffer);
+
+        if bytes_read > 0 {
+            let mut message = [0u8; 21];
+
+            let mut value = bytes_read as u64;
+            let mut reversed_digits = [0u8; 20];
+            let mut digit_count = 0;
+            while value > 0 {
+                reversed_digits[digit_count] = b'0' + (value % 10) as u8;
+                digit_count += 1;
+                value /= 10;
+            }
+            for i in 0..digit_count {
+                message[i] = reversed_digits[digit_count - i - 1];
+            }
+            message[digit_count] = b'\n';
+
+            stream.write(&message[..digit_count + 1])?;
+            stream.write(&buffer[..bytes_read as usize])?;
+        } else {
+            Api::write_string("**** read file faile\n");
+        }
+        Ok(())
     }
-    Ok(())
 }
 
 fn main() -> Result<()> {

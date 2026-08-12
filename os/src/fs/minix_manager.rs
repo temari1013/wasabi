@@ -98,4 +98,16 @@ impl MinixFs {
         let inode = minix3_inode::new(0);
         inode.create_file(&mut fs.image, fs.block_size, file_path)
     }
+    
+    pub fn fs_img(buffer: & mut [u8]) -> Result<()> {
+            let mut global_fs = MINIX_FS.lock();
+            let fs = global_fs
+            .as_mut()
+            .ok_or(Failed("Minix filesystem is not initialized"))?;
+        if (buffer.len() <fs.image.len()) {
+            Failed("too short buffer");
+        }
+        buffer.copy_from_slice(fs.image.as_slice());
+        Ok(())
+    }
 }
