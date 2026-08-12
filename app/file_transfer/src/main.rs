@@ -22,6 +22,16 @@ fn handle_command(command: &str, stream: &mut TcpStream) -> Result<()> {
                 }
             }
         }
+        Some("put") => {
+              let path = splitted_command.next();
+               match path {
+                Some(path) => handle_put(path, stream),
+                None => {
+                    Api::write_string("**** path is empty in put request\n");
+                    Ok(())
+                }
+            }
+        }
         _ => {
             Api::write_string("**** invalid commnad\n");
             Ok(())
@@ -93,6 +103,10 @@ fn handle_get(path: &str, stream: &mut TcpStream) -> Result<()> {
         }
         Ok(())
     }
+}
+
+fn handle_put(path: &str ,stream: &mut TcpStream) -> Result<()> {
+    Ok(())
 }
 
 fn main() -> Result<()> {

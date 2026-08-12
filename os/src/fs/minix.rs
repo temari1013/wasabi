@@ -18,6 +18,8 @@ macro_rules! function_name {
 }
 pub type c_char = u8;
 pub const MINIX_MAX_FILENAME: usize = 60;
+const MINIX_DIRECTORY_MODE: u16 = 0o040755;
+const MINIX_REGULAR_FILE_MODE: u16 = 0o100644;
 
 fn split_path_and_filename(file_path: &[u8]) -> (&[u8], &[u8]) {
     info!("Current function: {}", function_name!());
@@ -179,7 +181,11 @@ impl minix3_inode {
         info!("Current function: {}", function_name!());
         let node = minix3_inode {
             i_mode: mode,
-            i_nlinks: 0,
+            i_nlinks: if mode == MINIX_REGULAR_FILE_MODE {
+                1
+            } else {
+                0
+            },
             i_uid: 0,
             i_gid: 0,
             i_size: 0,
@@ -289,7 +295,7 @@ impl minix3_inode {
             entries_count as u32,
         )?;
 
-        for (_, entry) in entries.iter_mut().enumerate() {
+        for (entry_index, entry) in entries.iter_mut().enumerate() {
             if entry.inode == 0 {
                 entry.inode = new_inode_num;
                 entry.name.fill(0);
@@ -297,6 +303,12 @@ impl minix3_inode {
                 let copy_len = core::cmp::min(file_name.len(), 60);
                 for i in 0..copy_len {
                     entry.name[i] = file_name[i];
+                }
+
+                let entry_end =
+                    ((entry_index + 1) * core::mem::size_of::<minix3_dir_entry>()) as u32;
+                if parent_inode.i_size < entry_end {
+                    parent_inode.i_size = entry_end;
                 }
                 return Ok(());
             }
@@ -309,12 +321,12 @@ impl minix3_inode {
         info!("Current function: {}", function_name!());
         let (dir, filename) = split_path_and_filename(path);
         if dir == b"/" {
-            inode_num = self.alloc_inode(minix_img, block_size, 0x0000)?;
+            inode_num = self.alloc_inode(minix_img, block_size, MINIX_REGULAR_FILE_MODE)?;
             let _ = self.link_inode(minix_img, 1, inode_num, block_size, filename);
         } else {
             let parent_inode_num = self.lookup_iter(dir, minix_img, block_size)?;
 
-            inode_num = self.alloc_inode(minix_img, block_size, 0x0000)?;
+            inode_num = self.alloc_inode(minix_img, block_size, MINIX_REGULAR_FILE_MODE)?;
             info!("{}", inode_num);
             self.link_inode(minix_img, parent_inode_num, inode_num, block_size, filename)?;
         }
@@ -409,7 +421,7 @@ impl minix3_inode {
             return Err(Failed("parent inode num is 0"));
         }
 
-        let new_inode_num = self.alloc_inode(minix_img, block_size, 0x4000)?;
+        let new_inode_num = self.alloc_inode(minix_img, block_size, MINIX_DIRECTORY_MODE)?;
         if self
             .link_inode(
                 minix_img,
@@ -675,7 +687,8 @@ pub fn init_minixfs(mem: &mut [u8], block_size: usize) {
     mem[begin as usize..end as usize].fill(0);
 
     // rootのinodeを書き込む
-    let mut root_inode = minix3_inode::new(0x4000);
+    let mut root_inode = minix3_inode::new(MINIX_DIRECTORY_MODE);
+    root_inode.i_nlinks = 2;
     root_inode.i_size = 128;
     root_inode.i_zone[0] = firstdatazone;
     unsafe {
@@ -775,9 +788,17 @@ mod test {
         let root_inode_ptr = get_root_inode_ptr_mut(img_ptr, BLOCK_SIZE);
         let root_inode = unsafe { read_unaligned(root_inode_ptr) };
 
-        root_inode
+        let file_inode_num = root_inode
             .create_file(&mut minix_img, BLOCK_SIZE, b"dir/newfile.txt")
             .unwrap();
+        let file_inode_ptr = root_inode
+            .get_inode(file_inode_num, BLOCK_SIZE, &mut minix_img)
+            .unwrap();
+        let file_inode = unsafe { read_unaligned(file_inode_ptr) };
+        let file_mode = file_inode.i_mode;
+        assert_eq!(file_mode, MINIX_REGULAR_FILE_MODE);
+        let file_nlinks = file_inode.i_nlinks;
+        assert_eq!(file_nlinks, 1);
 
         // 確認すべきは親ディレクトリのzone[0]にnewfile.
         // txtがファイル名のディレクトリエントリがあるかどうか
@@ -834,9 +855,15 @@ mod test {
         let root_inode_ptr = get_root_inode_ptr_mut(img_ptr, BLOCK_SIZE);
         let root_inode = unsafe { read_unaligned(root_inode_ptr) };
 
-        root_inode
+        let new_dir_inode_num = root_inode
             .mkdir(&mut minix_img, b"dir/nested/new_dir", BLOCK_SIZE)
             .unwrap();
+        let new_dir_inode_ptr = root_inode
+            .get_inode(new_dir_inode_num, BLOCK_SIZE, &mut minix_img)
+            .unwrap();
+        let new_dir_inode = unsafe { read_unaligned(new_dir_inode_ptr) };
+        let new_dir_mode = new_dir_inode.i_mode;
+        assert_eq!(new_dir_mode, MINIX_DIRECTORY_MODE);
 
         // 親ディレクトリに作成した名前のディレクトリエントリが配置されているかどうかとinodeの値の検証
         let dir_inode_num = root_inode.lookup(b"dir", &minix_img, BLOCK_SIZE).unwrap();
@@ -1096,7 +1123,10 @@ mod test {
         let root_inode = unsafe { core::ptr::read_unaligned(root_inode_ptr) };
 
         let i_mode = root_inode.i_mode;
-        assert_eq!(i_mode & 0x4000, 0x4000, "Root inode should be a directory");
+        assert_eq!(i_mode, MINIX_DIRECTORY_MODE);
+
+        let i_nlinks = root_inode.i_nlinks;
+        assert_eq!(i_nlinks, 2, "Root inode should have two links");
 
         let i_size = root_inode.i_size;
         assert_eq!(i_size, 128, "Root inode size should be 128");
@@ -1123,6 +1153,13 @@ mod test {
         }
         assert!(found_dot, "Root directory should contain '.' entry");
         assert!(found_dotdot, "Root directory should contain '..' entry");
+
+        root_inode
+            .create_file(&mut mem, BLOCK_SIZE, b"/test.txt")
+            .unwrap();
+        let root_inode = unsafe { core::ptr::read_unaligned(root_inode_ptr) };
+        let i_size = root_inode.i_size;
+        assert_eq!(i_size, 192, "Root inode size should include the new entry");
     }
 
     #[test_case]
