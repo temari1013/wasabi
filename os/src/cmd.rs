@@ -8,6 +8,7 @@ use crate::error;
 use crate::error::Error;
 use crate::error::Result;
 use crate::executor::yield_execution;
+use crate::fs::minix_manager::MinixFs;
 use crate::info;
 use crate::loader::Elf;
 use crate::mutex::Mutex;
@@ -17,6 +18,7 @@ use crate::net::icmp::IcmpPacket;
 use crate::net::manager::Network;
 use crate::println;
 use crate::x86_64::trigger_debug_interrupt;
+use alloc::borrow::Cow;
 use alloc::format;
 use alloc::vec::Vec;
 use core::str::FromStr;
@@ -28,23 +30,25 @@ async fn run_app(name: &str, args: &[&str]) -> Result<i64> {
     let root_files = boot_info.root_files();
     let root_files: alloc::vec::Vec<&crate::boot_info::File> =
         root_files.iter().filter_map(|e| e.as_ref()).collect();
-    let name = EfiFileName::from_str(name)?;
-    let elf = root_files.iter().find(|&e| e.name() == &name);
-    if let Some(elf) = elf {
-        let elf = Elf::parse(elf)?;
-        let app = elf.load()?;
-        let result = app.exec(args).await?;
-        #[cfg(test)]
-        if result == 0 {
-            debug::exit_qemu(debug::QemuExitCode::Success);
-        } else {
-            debug::exit_qemu(debug::QemuExitCode::Fail);
-        }
-        #[cfg(not(test))]
-        Ok(result)
+    let efi_name = EfiFileName::from_str(name)?;
+    let elf = root_files.iter().find(|&e| e.name() == &efi_name);
+    let data = if let Some(elf) = elf {
+        Cow::Borrowed(elf.data())
     } else {
-        Err(Error::Failed("command::run_app: No such file or app"))
+        Cow::Owned(MinixFs::read(name.as_bytes())?)
+    };
+
+    let elf = Elf::parse(data.as_ref())?;
+    let app = elf.load()?;
+    let result = app.exec(args).await?;
+    #[cfg(test)]
+    if result == 0 {
+        debug::exit_qemu(debug::QemuExitCode::Success);
+    } else {
+        debug::exit_qemu(debug::QemuExitCode::Fail);
     }
+    #[cfg(not(test))]
+    Ok(result)
 }
 
 pub async fn run(cmdline: &str) -> Result<()> {

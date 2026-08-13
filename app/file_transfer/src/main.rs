@@ -1,6 +1,9 @@
 #![no_std]
 #![cfg_attr(not(target_os = "linux"), no_main)]
 
+extern crate alloc;
+
+use alloc::vec;
 use core::str;
 use noli::error::Error;
 use noli::net::TcpStream;
@@ -22,9 +25,7 @@ fn split_path_and_filename(file_path: &[u8]) -> (&[u8], &[u8]) {
 
 fn handle_command(command: &str, stream: &mut TcpStream) -> Result<()> {
     Api::write_string(command);
-    let mut command_parts = command.splitn(2, '\n');
-    let command_line = command_parts.next().unwrap_or("");
-    let mut splitted_command = command_line.split_whitespace();
+    let mut splitted_command = command.split_whitespace();
 
     match splitted_command.next() {
         Some("get") => {
@@ -40,16 +41,17 @@ fn handle_command(command: &str, stream: &mut TcpStream) -> Result<()> {
         Some("put") => {
             let path = splitted_command.next();
             let size = splitted_command.next();
-            let data = command_parts.next();
-            match (path, size, data) {
-                (Some(path), Some(size), Some(data)) => {
-                    let filesize: u32 = size
+            match (path, size) {
+                (Some(path), Some(size)) => {
+                    let filesize: usize = size
                         .parse()
                         .map_err(|_| Error::Failed("Invalid file size"))?;
-                    handle_put(path, filesize, data.as_bytes(), stream)
+                    let mut data = vec![0; filesize];
+                    read_exact(stream, &mut data)?;
+                    handle_put(path, &data, stream)
                 }
                 _ => {
-                    Api::write_string("path or size or data is empty in put request\n");
+                    Api::write_string("path or size is empty in put request\n");
                     Ok(())
                 }
             }
@@ -58,6 +60,35 @@ fn handle_command(command: &str, stream: &mut TcpStream) -> Result<()> {
             Api::write_string("**** invalid commnad\n");
             Ok(())
         }
+    }
+}
+
+fn read_exact(stream: &mut TcpStream, mut data: &mut [u8]) -> Result<()> {
+    while !data.is_empty() {
+        let bytes_read = stream.read(data)?;
+        if bytes_read == 0 {
+            return Err(Error::Failed("Connection closed during PUT"));
+        }
+        data = &mut data[bytes_read..];
+    }
+    Ok(())
+}
+
+fn read_command_line(stream: &mut TcpStream, buffer: &mut [u8]) -> Result<usize> {
+    let mut len = 0;
+    loop {
+        if len == buffer.len() {
+            return Err(Error::Failed("Command line is too long"));
+        }
+
+        let bytes_read = stream.read(&mut buffer[len..len + 1])?;
+        if bytes_read == 0 {
+            return Ok(0);
+        }
+        if buffer[len] == b'\n' {
+            return Ok(len);
+        }
+        len += 1;
     }
 }
 
@@ -97,7 +128,7 @@ fn handle_get(path: &str, stream: &mut TcpStream) -> Result<()> {
             }
             Api::write_string("write chunk done\n");
         }
-           Api::write_string("send /proc/fs.img done\n");
+        Api::write_string("send /proc/fs.img done\n");
         Ok(())
     } else {
         Api::write_string("file sending ... \n");
@@ -134,18 +165,17 @@ fn handle_get(path: &str, stream: &mut TcpStream) -> Result<()> {
         } else {
             Api::write_string("**** read file failed\n");
         }
-          Api::write_string("send file done\n");
+        Api::write_string("send file done\n");
         Ok(())
     }
 }
 
-fn handle_put(path: &str, filesize: u32,  data : &[u8] , stream: &mut TcpStream) -> Result<()> {
+fn handle_put(path: &str, data: &[u8], stream: &mut TcpStream) -> Result<()> {
     Api::write_string("put request received\n");
 
     let (_, name) = split_path_and_filename(path.as_bytes());
-    let succeeded = data.len() == filesize as usize
-        && Api::create_file(name) >= 0
-        && Api::write_all_file(name, data) == filesize as i64;
+    let succeeded =
+        Api::create_file(name) >= 0 && Api::write_all_file(name, data) == data.len() as i64;
 
     let response: &[u8] = if succeeded { b"ok\n" } else { b"failed\n" };
     let bytes_written = stream.write(response)?;
@@ -167,18 +197,23 @@ fn main() -> Result<()> {
     let mut buf = [0u8; 1024];
     loop {
         Api::write_string("**** listening request in port 18083...\n");
-        let bytes_read = stream.read(&mut buf)?;
+        let bytes_read = read_command_line(&mut stream, &mut buf)?;
 
         // 接続が閉じられたら次の接続を待つ
         if bytes_read == 0 {
             continue;
         }
 
-        match str::from_utf8(&buf[..bytes_read]) {
-            Ok(command) => handle_command(command, &mut stream)?,
-            Err(_) => return Err(Error::Failed("Invalid UTF-8 sequence")),
+        let command = str::from_utf8(&buf[..bytes_read])
+            .map_err(|_| Error::Failed("Invalid UTF-8 sequence"))?;
+        if command == "exit" {
+            stream.write(b"bye\n")?;
+            break;
         }
+        handle_command(command, &mut stream)?;
     }
+
+    Ok(())
 }
 
 entry_point!(main);

@@ -1,6 +1,5 @@
 extern crate alloc;
 
-use crate::boot_info::File;
 use crate::elf;
 use crate::elf::SectionHeader;
 use crate::elf::SegmentHeader;
@@ -84,7 +83,7 @@ impl<'a> LoadedElf<'a> {
 }
 
 pub struct Elf<'a> {
-    file: &'a File,
+    data: &'a [u8],
     entry_vaddr: u64,
     segments: Vec<SegmentHeader>,
     _sections: BTreeMap<String, SectionHeader>,
@@ -113,8 +112,7 @@ impl<'a> Elf<'a> {
     pub fn read_string(&self, name_ofs: usize) -> String {
         Self::read_string_from_table(&self.string_table, name_ofs)
     }
-    pub fn parse(file: &'a File) -> Result<Self> {
-        let data = file.data();
+    pub fn parse(data: &'a [u8]) -> Result<Self> {
         // https://wiki.osdev.org/ELF#Header
         if &data[0..4] != b"\x7fELF".as_slice() {
             return Err(Error::Failed("No ELF signature found"));
@@ -205,7 +203,7 @@ impl<'a> Elf<'a> {
             .and_then(|s| s.file_range().ok())
             .map(|r| &data[r]);
         Ok(Self {
-            file,
+            data,
             entry_vaddr,
             segments,
             _sections: sections,
@@ -221,7 +219,7 @@ impl<'a> Elf<'a> {
     ) -> Result<()> {
         let segment_file_range = sh.file_range();
         let dst = region.as_mut_slice();
-        let src = self.file.data();
+        let src = self.data;
         let dst = &mut dst[sh.vaddr_range().to_range_in(app_vaddr_range)?];
         let src = &src[segment_file_range];
         dst[..src.len()].copy_from_slice(src);
@@ -268,7 +266,7 @@ impl<'a> Elf<'a> {
         if let Some(dynamic_segment) = dynamic_segment {
             let frange = dynamic_segment.offset as usize
                 ..(dynamic_segment.offset + dynamic_segment.fsize) as usize;
-            let entries = &self.file.data()[frange]
+            let entries = &self.data[frange]
                 .chunks_exact(size_of::<elf::DynamicEntry>())
                 .map(elf::DynamicEntry::try_from)
                 .collect::<Result<Vec<elf::DynamicEntry>>>()?;
@@ -316,9 +314,8 @@ impl<'a> fmt::Debug for Elf<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "Elf {{ name: {}, data: @{:#p} }}",
-            &self.file.name(),
-            self.file.data().as_ptr()
+            "Elf {{ data: @{:#p} }}",
+            self.data.as_ptr()
         )
     }
 }
