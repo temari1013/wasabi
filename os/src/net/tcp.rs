@@ -361,18 +361,31 @@ impl TcpSocket {
                 *self.another_port.lock() = Some(to_port);
                 *self.self_ip.lock() = Some(from_ip);
                 *self.self_port.lock() = Some(from_port);
-                return Ok(());
-            }
-            TcpSocketState::Established => {
-                if in_tcp.is_fin() {
-                    seq_to_ack = seq_to_ack.wrapping_add(1);
-                    // FIN consumes 1 byte in the seq number space.
-                    fin = true;
-                    *self.my_next_seq.lock() = seq.wrapping_add(1);
-                    *self.state.lock() = TcpSocketState::LastAck;
+                if in_tcp_data.is_empty() {
+                    return Ok(());
                 }
                 seq_to_ack = seq_to_ack.wrapping_add(in_tcp_data.len() as u32);
                 self.rx_data.lock().extend(in_tcp_data);
+            }
+            TcpSocketState::Established => {
+                let expected_seq = *self.last_seq_to_ack.lock();
+                if in_tcp.seq_num() != expected_seq {
+                    warn!(
+                        "net: tcp: recv: unexpected sequence number: expected {expected_seq}, got {}",
+                        in_tcp.seq_num()
+                    );
+                    seq_to_ack = expected_seq;
+                } else {
+                    if in_tcp.is_fin() {
+                        seq_to_ack = seq_to_ack.wrapping_add(1);
+                        // FIN consumes 1 byte in the seq number space.
+                        fin = true;
+                        *self.my_next_seq.lock() = seq.wrapping_add(1);
+                        *self.state.lock() = TcpSocketState::LastAck;
+                    }
+                    seq_to_ack = seq_to_ack.wrapping_add(in_tcp_data.len() as u32);
+                    self.rx_data.lock().extend(in_tcp_data);
+                }
                 // Send ACK
             }
             TcpSocketState::LastAck => {

@@ -120,10 +120,19 @@ fn handle_get(path: &str, stream: &mut TcpStream) -> Result<()> {
             }
             message[digit_count] = b'\n';
 
-            stream.write(&message[..digit_count + 1])?;
-            stream.write(&buffer[..bytes_read as usize])?;
+            let header_len = digit_count + 1;
+            let file_len = bytes_read as usize;
+            let mut response = [0u8; 21 + 2048];
+            response[..header_len].copy_from_slice(&message[..header_len]);
+            response[header_len..header_len + file_len].copy_from_slice(&buffer[..file_len]);
+
+            let response_len = header_len + file_len;
+            let bytes_written = stream.write(&response[..response_len])?;
+            if bytes_written != response_len {
+                return Err(Error::Failed("Incomplete file write"));
+            }
         } else {
-            Api::write_string("**** read file faile\n");
+            Api::write_string("**** read file failed\n");
         }
           Api::write_string("send file done\n");
         Ok(())
