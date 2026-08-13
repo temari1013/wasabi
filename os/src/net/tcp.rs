@@ -368,6 +368,7 @@ impl TcpSocket {
                     seq_to_ack = seq_to_ack.wrapping_add(1);
                     // FIN consumes 1 byte in the seq number space.
                     fin = true;
+                    *self.my_next_seq.lock() = seq.wrapping_add(1);
                     *self.state.lock() = TcpSocketState::LastAck;
                 }
                 seq_to_ack = seq_to_ack.wrapping_add(in_tcp_data.len() as u32);
@@ -486,6 +487,12 @@ impl TcpSocket {
     }
     pub fn is_established(&self) -> bool {
         *self.state.lock() == TcpSocketState::Established
+    }
+    pub fn is_listening_or_closing(&self) -> bool {
+        matches!(
+            *self.state.lock(),
+            TcpSocketState::Listen | TcpSocketState::LastAck
+        )
     }
     pub fn is_trying_to_connect(&self) -> bool {
         matches!(

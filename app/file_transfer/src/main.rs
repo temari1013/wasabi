@@ -91,11 +91,13 @@ fn handle_get(path: &str, stream: &mut TcpStream) -> Result<()> {
 
         for chunk in buf[..image_size as usize].chunks(1024) {
             let bytes_written = stream.write(chunk)?;
+
             if bytes_written != chunk.len() {
                 return Err(Error::Failed("Incomplete MinixFS image write"));
             }
+            Api::write_string("write chunk done\n");
         }
-
+           Api::write_string("send /proc/fs.img done\n");
         Ok(())
     } else {
         Api::write_string("file sending ... \n");
@@ -123,6 +125,7 @@ fn handle_get(path: &str, stream: &mut TcpStream) -> Result<()> {
         } else {
             Api::write_string("**** read file faile\n");
         }
+          Api::write_string("send file done\n");
         Ok(())
     }
 }
@@ -153,9 +156,9 @@ fn main() -> Result<()> {
         Api::write_string("**** listening request in port 18083...\n");
         let bytes_read = stream.read(&mut buf)?;
 
-        // 接続が閉じられたらbreak
+        // 接続が閉じられたら次の接続を待つ
         if bytes_read == 0 {
-            break;
+            continue;
         }
 
         match str::from_utf8(&buf[..bytes_read]) {
@@ -163,8 +166,6 @@ fn main() -> Result<()> {
             Err(_) => return Err(Error::Failed("Invalid UTF-8 sequence")),
         }
     }
-
-    Api::exit(42);
 }
 
 entry_point!(main);

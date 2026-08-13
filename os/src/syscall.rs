@@ -203,7 +203,8 @@ fn sys_tcp_read(args: &[u64; 5]) -> i64 {
     };
     match sock {
         Ok(sock) => {
-            while sock.is_trying_to_connect()
+            while sock.is_listening_or_closing()
+                || sock.is_trying_to_connect()
                 || (sock.is_established() && sock.rx_data().lock().len() == 0)
             {
                 Scheduler::root().switch_process();

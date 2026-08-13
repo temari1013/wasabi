@@ -5,6 +5,7 @@ members = [
     "app/test_tcp_server",
     "app/sdtree",
     "app/dig",
+    "app/coffee",
     "app/hello0",
     "app/hello1",
     "app/httpget",
