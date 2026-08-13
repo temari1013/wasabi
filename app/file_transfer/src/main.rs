@@ -22,7 +22,9 @@ fn split_path_and_filename(file_path: &[u8]) -> (&[u8], &[u8]) {
 
 fn handle_command(command: &str, stream: &mut TcpStream) -> Result<()> {
     Api::write_string(command);
-    let mut splitted_command = command.split_whitespace();
+    let mut command_parts = command.splitn(2, '\n');
+    let command_line = command_parts.next().unwrap_or("");
+    let mut splitted_command = command_line.split_whitespace();
 
     match splitted_command.next() {
         Some("get") => {
@@ -36,17 +38,15 @@ fn handle_command(command: &str, stream: &mut TcpStream) -> Result<()> {
             }
         }
         Some("put") => {
-            // TODO : splitted_comand.next(); に失敗したときの処理を詰める
             let path = splitted_command.next();
             let size = splitted_command.next();
-            let data = splitted_command.next();
-            match (path, size , data) {
-                (Some(path), Some(size) , Some(data)) => {
+            let data = command_parts.next();
+            match (path, size, data) {
+                (Some(path), Some(size), Some(data)) => {
                     let filesize: u32 = size
                         .parse()
                         .map_err(|_| Error::Failed("Invalid file size"))?;
-                    let data: &[u8] = data.as_bytes();
-                    handle_put(path, filesize, data, stream)
+                    handle_put(path, filesize, data.as_bytes(), stream)
                 }
                 _ => {
                     Api::write_string("path or size or data is empty in put request\n");
@@ -142,12 +142,16 @@ fn handle_get(path: &str, stream: &mut TcpStream) -> Result<()> {
 fn handle_put(path: &str, filesize: u32,  data : &[u8] , stream: &mut TcpStream) -> Result<()> {
     Api::write_string("put request received\n");
 
-     //  1.pathをsplitする
-     let (parent , name ) = split_path_and_filename(path.as_bytes());
-     // 2. ファイルを作成する
-     Api::create_file(name);
-     // 3. データを書き込む
-     Api::write_all_file(name ,  data);
+    let (_, name) = split_path_and_filename(path.as_bytes());
+    let succeeded = data.len() == filesize as usize
+        && Api::create_file(name) >= 0
+        && Api::write_all_file(name, data) == filesize as i64;
+
+    let response: &[u8] = if succeeded { b"ok\n" } else { b"failed\n" };
+    let bytes_written = stream.write(response)?;
+    if bytes_written != response.len() {
+        return Err(Error::Failed("Incomplete PUT response write"));
+    }
 
     Ok(())
 }
