@@ -46,6 +46,26 @@ fn handle_command(command: &str, stream: &mut TcpStream) -> Result<()> {
                     let filesize: usize = size
                         .parse()
                         .map_err(|_| Error::Failed("Invalid file size"))?;
+                    if filesize > 1024 {
+                        let mut remaining = filesize;
+                        let mut discard_buffer = [0u8; 1024];
+                        while remaining > 0 {
+                            let read_size = core::cmp::min(remaining, discard_buffer.len());
+                            let bytes_read = stream.read(&mut discard_buffer[..read_size])?;
+                            if bytes_read == 0 {
+                                return Err(Error::Failed(
+                                    "Connection closed while discarding oversized PUT",
+                                ));
+                            }
+                            remaining -= bytes_read;
+                        }
+
+                        const RESPONSE: &[u8] = b"failed\n";
+                        if stream.write(RESPONSE)? != RESPONSE.len() {
+                            return Err(Error::Failed("Incomplete PUT response write"));
+                        }
+                        return Ok(());
+                    }
                     let mut data = vec![0; filesize];
                     read_exact(stream, &mut data)?;
                     handle_put(path, &data, stream)
@@ -162,7 +182,6 @@ fn handle_get(path: &str, stream: &mut TcpStream) -> Result<()> {
                 return Err(Error::Failed("Incomplete GET error response write"));
             }
         }
-        Api::write_string("send file done\n");
         Ok(())
     }
 }
@@ -204,7 +223,6 @@ fn main() -> Result<()> {
         let command = str::from_utf8(&buf[..bytes_read])
             .map_err(|_| Error::Failed("Invalid UTF-8 sequence"))?;
         if command == "exit" {
-            stream.write(b"bye\n")?;
             break;
         }
         handle_command(command, &mut stream)?;
