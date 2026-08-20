@@ -56,11 +56,47 @@ fn handle_command(command: &str, stream: &mut TcpStream) -> Result<()> {
                 }
             }
         }
+        Some("dir") => handle_dir(stream),
         _ => {
             Api::write_string("**** invalid commnad\n");
             Ok(())
         }
     }
+}
+
+fn handle_dir(stream: &mut TcpStream) -> Result<()> {
+    const RESPONSE_BODY: &[u8] = concat!(
+        "/\n",
+        "|-- proc/\n",
+        "|   `-- fs.img\n",
+        "`-- directory listing unavailable\n",
+    )
+    .as_bytes();
+
+    let mut response = [0u8; 24 + RESPONSE_BODY.len()];
+    response[..3].copy_from_slice(b"OK ");
+
+    let mut size = RESPONSE_BODY.len();
+    let mut reversed_digits = [0u8; 20];
+    let mut digit_count = 0;
+    while size > 0 {
+        reversed_digits[digit_count] = b'0' + (size % 10) as u8;
+        digit_count += 1;
+        size /= 10;
+    }
+    for i in 0..digit_count {
+        response[3 + i] = reversed_digits[digit_count - i - 1];
+    }
+    response[3 + digit_count] = b'\n';
+
+    let header_len = 4 + digit_count;
+    let response_len = header_len + RESPONSE_BODY.len();
+    response[header_len..response_len].copy_from_slice(RESPONSE_BODY);
+
+    if stream.write(&response[..response_len])? != response_len {
+        return Err(Error::Failed("Incomplete DIR response write"));
+    }
+    Ok(())
 }
 
 fn read_exact(stream: &mut TcpStream, mut data: &mut [u8]) -> Result<()> {
@@ -101,7 +137,10 @@ fn handle_get(path: &str, stream: &mut TcpStream) -> Result<()> {
         let mut buf = [0u8; 512 * 64];
         let image_size = Api::fs_img(&mut buf);
         if image_size < 0 {
-            return Err(Error::Failed("Failed to read MinixFS image"));
+            if stream.write(b"-1\n")? != 3 {
+                return Err(Error::Failed("Incomplete GET error response write"));
+            }
+            return Ok(());
         }
 
         let mut message = [0u8; 21];
@@ -164,6 +203,9 @@ fn handle_get(path: &str, stream: &mut TcpStream) -> Result<()> {
             }
         } else {
             Api::write_string("**** read file failed\n");
+            if stream.write(b"-1\n")? != 3 {
+                return Err(Error::Failed("Incomplete GET error response write"));
+            }
         }
         Api::write_string("send file done\n");
         Ok(())

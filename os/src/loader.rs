@@ -312,10 +312,6 @@ impl<'a> Elf<'a> {
 }
 impl<'a> fmt::Debug for Elf<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "Elf {{ data: @{:#p} }}",
-            self.data.as_ptr()
-        )
+        write!(f, "Elf {{ data: @{:#p} }}", self.data.as_ptr())
     }
 }
