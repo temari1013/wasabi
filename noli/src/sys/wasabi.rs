@@ -136,6 +136,15 @@ impl SystemApi for Api {
     fn show_directory_tree() -> i64 {
         syscall_0(15) as i64
     }
+    fn list_dir_entries(path: &[u8], buf: &mut [u8]) -> i64 {
+        syscall_4(
+            18,
+            path.as_ptr() as u64,
+            path.len() as u64,
+            buf.as_mut_ptr() as u64,
+            buf.len() as u64,
+        ) as i64
+    }
     fn exit(code: u64) -> ! {
         syscall_1(0, code);
         unreachable!()

@@ -3,7 +3,7 @@
 
 extern crate alloc;
 
-use alloc::vec;
+use alloc::{format, vec};
 use core::str;
 use noli::error::Error;
 use noli::net::TcpStream;
@@ -65,35 +65,21 @@ fn handle_command(command: &str, stream: &mut TcpStream) -> Result<()> {
 }
 
 fn handle_dir(stream: &mut TcpStream) -> Result<()> {
-    const RESPONSE_BODY: &[u8] = concat!(
-        "/\n",
-        "|-- proc/\n",
-        "|   `-- fs.img\n",
-        "`-- directory listing unavailable\n",
-    )
-    .as_bytes();
-
-    let mut response = [0u8; 24 + RESPONSE_BODY.len()];
-    response[..3].copy_from_slice(b"OK ");
-
-    let mut size = RESPONSE_BODY.len();
-    let mut reversed_digits = [0u8; 20];
-    let mut digit_count = 0;
-    while size > 0 {
-        reversed_digits[digit_count] = b'0' + (size % 10) as u8;
-        digit_count += 1;
-        size /= 10;
+    let mut entries = [0u8; 2048];
+    let entries_len = Api::list_dir_entries(b"/", &mut entries);
+    if entries_len < 0 {
+        const RESPONSE: &[u8] = b"Err dir failed\n";
+        if stream.write(RESPONSE)? != RESPONSE.len() {
+            return Err(Error::Failed("Incomplete DIR error response write"));
+        }
+        return Ok(());
     }
-    for i in 0..digit_count {
-        response[3 + i] = reversed_digits[digit_count - i - 1];
-    }
-    response[3 + digit_count] = b'\n';
 
-    let header_len = 4 + digit_count;
-    let response_len = header_len + RESPONSE_BODY.len();
-    response[header_len..response_len].copy_from_slice(RESPONSE_BODY);
+    let entries_len = entries_len as usize;
+    let mut response = format!("OK {}\n", entries_len).into_bytes();
+    response.extend_from_slice(&entries[..entries_len]);
 
-    if stream.write(&response[..response_len])? != response_len {
+    if stream.write(&response)? != response.len() {
         return Err(Error::Failed("Incomplete DIR response write"));
     }
     Ok(())
@@ -143,21 +129,8 @@ fn handle_get(path: &str, stream: &mut TcpStream) -> Result<()> {
             return Ok(());
         }
 
-        let mut message = [0u8; 21];
-        let mut value = image_size as u64;
-
-        let mut reversed_digits = [0u8; 20];
-        let mut digit_count = 0;
-        while value > 0 {
-            reversed_digits[digit_count] = b'0' + (value % 10) as u8;
-            digit_count += 1;
-            value /= 10;
-        }
-        for i in 0..digit_count {
-            message[i] = reversed_digits[digit_count - i - 1];
-        }
-        message[digit_count] = b'\n';
-        stream.write(&message[..digit_count + 1])?;
+        let header = format!("{}\n", image_size);
+        stream.write(header.as_bytes())?;
 
         for chunk in buf[..image_size as usize].chunks(1024) {
             let bytes_written = stream.write(chunk)?;
@@ -175,30 +148,12 @@ fn handle_get(path: &str, stream: &mut TcpStream) -> Result<()> {
         let bytes_read = Api::read_all_file(path.as_bytes(), &mut buffer);
 
         if bytes_read > 0 {
-            let mut message = [0u8; 21];
-
-            let mut value = bytes_read as u64;
-            let mut reversed_digits = [0u8; 20];
-            let mut digit_count = 0;
-            while value > 0 {
-                reversed_digits[digit_count] = b'0' + (value % 10) as u8;
-                digit_count += 1;
-                value /= 10;
-            }
-            for i in 0..digit_count {
-                message[i] = reversed_digits[digit_count - i - 1];
-            }
-            message[digit_count] = b'\n';
-
-            let header_len = digit_count + 1;
             let file_len = bytes_read as usize;
-            let mut response = [0u8; 21 + 2048];
-            response[..header_len].copy_from_slice(&message[..header_len]);
-            response[header_len..header_len + file_len].copy_from_slice(&buffer[..file_len]);
+            let mut response = format!("{}\n", file_len).into_bytes();
+            response.extend_from_slice(&buffer[..file_len]);
 
-            let response_len = header_len + file_len;
-            let bytes_written = stream.write(&response[..response_len])?;
-            if bytes_written != response_len {
+            let bytes_written = stream.write(&response)?;
+            if bytes_written != response.len() {
                 return Err(Error::Failed("Incomplete file write"));
             }
         } else {

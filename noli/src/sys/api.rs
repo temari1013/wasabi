@@ -90,6 +90,10 @@ pub trait SystemApi {
         unimplemented!()
     }
 
+    fn list_dir_entries(_path: &[u8], _buf: &mut [u8]) -> i64 {
+        unimplemented!()
+    }
+
     fn fs_img(_buf: &mut [u8]) -> i64 {
         unimplemented!()
     }

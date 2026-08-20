@@ -327,6 +327,16 @@ fn sys_show_directory_tree() -> i64 {
     return 0;
 }
 
+fn sys_list_dir_entries(args: &[u64; 5]) -> i64 {
+    let path = unsafe { core::slice::from_raw_parts(args[0] as *const u8, args[1] as usize) };
+    let buf = unsafe { core::slice::from_raw_parts_mut(args[2] as *mut u8, args[3] as usize) };
+
+    match MinixFs::list_dir_entries(path, buf) {
+        Ok(bytes_written) => bytes_written as i64,
+        Err(_) => -1,
+    }
+}
+
 // MinixFSのイメージ全体をユーザー側のバッファへコピーする。
 fn sys_fs_img(args: &[u64; 5]) -> i64 {
     let buf = unsafe { core::slice::from_raw_parts_mut(args[0] as *mut u8, args[1] as usize) };
@@ -372,6 +382,7 @@ pub fn syscall_handler(op: u64, args: &[u64; 5]) -> u64 {
         15 => sys_show_directory_tree() as u64,
         16 => sys_fs_img(args) as u64,
         17 => sys_create_file(args) as u64,
+        18 => sys_list_dir_entries(args) as u64,
         op => {
             println!("syscall: unimplemented syscall: {}", op);
             // Return u64::MAX here as it may be the "most unexpected value" that can crash the
